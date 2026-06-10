@@ -1,0 +1,94 @@
+/* Import fonts - MUST be first */
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+/* Tailwind directives - must come after @import */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global font settings */
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #f5e6d8;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Playfair Display', serif;
+}
+
+/* Scroll animations - FIXED */
+.fade-on-scroll {
+  opacity: 0;
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fade-on-scroll.visible {
+  opacity: 1 !important;
+}
+
+.fade-on-scroll.fade-up {
+  transform: translateY(30px);
+}
+
+.fade-on-scroll.fade-up.visible {
+  transform: translateY(0);
+}
+
+.fade-on-scroll.fade-left {
+  transform: translateX(-30px);
+}
+
+.fade-on-scroll.fade-left.visible {
+  transform: translateX(0);
+}
+
+.fade-on-scroll.fade-right {
+  transform: translateX(30px);
+}
+
+.fade-on-scroll.fade-right.visible {
+  transform: translateX(0);
+}
+
+/* Custom animations */
+@keyframes fadeInScale {
+  0% { opacity: 0; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes floatSoft {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes slideDown {
+  0% { opacity: 0; transform: translateY(-15px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-scale {
+  animation: fadeInScale 0.8s ease-out forwards;
+}
+
+.animate-float {
+  animation: floatSoft 5s ease-in-out infinite;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.25s ease-out forwards;
+}
+
+/* Cart badge */
+.cart-badge {
+  transition: opacity 0.2s;
+}
+
+/* Hide scrollbar for carousel */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
