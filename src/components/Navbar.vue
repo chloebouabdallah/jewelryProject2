@@ -22,8 +22,8 @@
       
       <!-- Icons -->
       <div class="flex items-center gap-3 md:gap-4">
-        <!-- Search Icon -->
-        <i class="fas fa-search text-base md:text-xl cursor-pointer hover:text-amber-700 transition text-[#4a3a2a]"></i>
+        <!-- Search Icon - Now clickable -->
+        <i @click="openSearchBar" class="fas fa-search text-base md:text-xl cursor-pointer hover:text-amber-700 transition text-[#4a3a2a]"></i>
         
         <!-- Heart / Wishlist Icon -->
         <router-link to="/wishlist" class="relative">
@@ -99,6 +99,9 @@
     </Transition>
   </nav>
   
+  <!-- Search Bar Component -->
+  <SearchBar ref="searchBarRef" />
+  
   <!-- Auth Modal -->
   <AuthModal />
 </template>
@@ -108,6 +111,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
+import SearchBar from './SearchBar.vue'
 import AuthModal from './AuthModal.vue'
 
 const router = useRouter()
@@ -117,6 +121,7 @@ const authStore = useAuthStore()
 const mobileMenuOpen = ref(false)
 const isScrolled = ref(false)
 const userMenuOpen = ref(false)
+const searchBarRef = ref(null)
 
 const navLinks = [
   { name: 'Home', path: '/' },
@@ -130,6 +135,13 @@ const navbarClass = computed(() => ({
   'bg-[#f5e6d8]/98 shadow-md': isScrolled.value,
   'bg-[#f5e6d8]/95': !isScrolled.value
 }))
+
+// Search bar functions
+const openSearchBar = () => {
+  if (searchBarRef.value) {
+    searchBarRef.value.openSearch()
+  }
+}
 
 // Toggle user menu
 const toggleUserMenu = () => {
@@ -163,7 +175,6 @@ const handleSignup = () => {
 const handleLogout = () => {
   authStore.logout()
   userMenuOpen.value = false
-  // Cart is cleared inside authStore.logout() now
 }
 
 // Mobile auth handlers
@@ -180,7 +191,6 @@ const handleSignupMobile = () => {
 const handleLogoutMobile = () => {
   authStore.logout()
   mobileMenuOpen.value = false
-  // Cart is cleared inside authStore.logout() now
 }
 
 const goToCart = () => {
