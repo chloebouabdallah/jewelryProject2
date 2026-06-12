@@ -2,7 +2,7 @@
   <section class="relative bg-[#f5e6d8] pt-14 md:pt-16 overflow-hidden">
     <div class="grid grid-cols-1 md:grid-cols-2 min-h-[80vh] md:min-h-screen">
       
-      <!-- Hero Carousel - Animates second with 3D effect -->
+      <!-- Hero Carousel -->
       <div 
         class="relative overflow-hidden min-h-[40vh] md:min-h-screen transition-all duration-1000 ease-out"
         :class="[
@@ -17,16 +17,16 @@
             :key="index"
             :src="image.src" 
             :alt="image.alt"
-            class="absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out"
-            :class="{ 'opacity-100': currentSlide === index, 'opacity-0': currentSlide !== index }"
+            class="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in-out"
+            :class="{ 'opacity-100 z-10': currentSlide === index, 'opacity-0 z-0': currentSlide !== index }"
           >
-          <div class="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent pointer-events-none"></div>
+          <div class="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent pointer-events-none z-20"></div>
         </div>
       </div>
       
-      <!-- Right Image - Background stays, image animates with creative effects -->
+      <!-- Right Image -->
       <div class="bg-gradient-to-br from-[#a67c52] to-[#8b5e3c] flex items-center justify-center p-6 md:p-12 min-h-[40vh] md:min-h-screen relative overflow-hidden">
-        <!-- Animated background particles using Tailwind animation -->
+        <!-- Animated background particles -->
         <div class="absolute inset-0 overflow-hidden">
           <div class="absolute w-1.5 h-1.5 bg-white/30 rounded-full top-[20%] left-[10%] animate-float-slow"></div>
           <div class="absolute w-1 h-1 bg-white/30 rounded-full top-[60%] left-[85%] animate-float-medium"></div>
@@ -52,7 +52,7 @@
         </div>
       </div>
 
-      <!-- Overlay Text - Animates third with cinematic reveal -->
+      <!-- Overlay Text -->
       <div class="absolute inset-0 flex flex-col justify-center items-center text-center z-20 pointer-events-none px-4">
         <div 
           class="transition-all duration-800 ease-[cubic-bezier(0.4,0,0.2,1)] delay-[300ms]"
@@ -62,7 +62,6 @@
             class="transition-all duration-800 ease-[cubic-bezier(0.4,0,0.2,1)] delay-[500ms]"
             :class="[isAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-16']"
           >
-            <!-- Decorative lines -->
             <div class="relative">
               <div 
                 class="absolute top-1/2 -translate-y-1/2 -left-20 md:-left-36 h-0.5 bg-gradient-to-r from-transparent via-white to-transparent transition-all duration-800 delay-[600ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
@@ -120,7 +119,7 @@ let interval = null
 const startCarousel = () => {
   interval = setInterval(() => {
     currentSlide.value = (currentSlide.value + 1) % heroImages.length
-  }, 4000)
+  }, 3000) // Changed from 4000ms to 3000ms for faster transitions
 }
 
 onMounted(() => {
@@ -136,7 +135,7 @@ onUnmounted(() => {
 </script>
 
 <style>
-/* Custom animations - Tailwind doesn't have these by default */
+/* Custom animations */
 @keyframes float-slow {
   0%, 100% { transform: translateY(0) translateX(0) scale(1); opacity: 0.3; }
   25% { transform: translateY(-20px) translateX(10px) scale(1.2); opacity: 0.6; }
