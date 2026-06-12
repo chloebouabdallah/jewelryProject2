@@ -93,8 +93,9 @@
               <textarea v-model="form.message" rows="5" required class="w-full px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"></textarea>
             </div>
             
-            <button type="submit" class="w-full bg-gradient-to-r from-amber-600 to-amber-500 text-white py-3 rounded-full font-semibold hover:scale-[1.02] transition shadow-md">
-              Send Message <i class="fas fa-paper-plane ml-2"></i>
+            <button type="submit" :disabled="sending" class="w-full bg-gradient-to-r from-amber-600 to-amber-500 text-white py-3 rounded-full font-semibold hover:scale-[1.02] transition shadow-md disabled:opacity-50">
+              <span v-if="!sending">Send Message <i class="fas fa-paper-plane ml-2"></i></span>
+              <span v-else><i class="fas fa-spinner fa-spin mr-2"></i> Sending...</span>
             </button>
             
             <Transition name="fade">
@@ -106,11 +107,25 @@
       </div>
     </section>
 
-    <!-- Map Section -->
+    <!-- Map Section - Google Maps -->
     <section class="py-10 px-5">
       <div class="max-w-6xl mx-auto">
-        <div class="rounded-2xl overflow-hidden shadow-xl h-96 bg-stone-300 flex items-center justify-center">
-          <p class="text-stone-500"><i class="fas fa-map"></i> Interactive Map Would Load Here</p>
+        <div class="rounded-2xl overflow-hidden shadow-xl">
+          <iframe 
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2624.9916256937595!2d2.329292!3d48.866667!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x47e66e3f0b3b4b6b%3A0x0!2zNDjCsDUyJzAwLjAiTiAywrAxOSc0NS4wIkU!5e0!3m2!1sen!2sfr!4v1700000000000!5m2!1sen!2sfr" 
+            width="100%" 
+            height="400" 
+            style="border:0;" 
+            allowfullscreen="" 
+            loading="lazy" 
+            referrerpolicy="no-referrer-when-downgrade">
+          </iframe>
+        </div>
+        <div class="text-center mt-4">
+          <p class="text-stone-600 text-sm">
+            <i class="fas fa-map-pin text-amber-600 mr-2"></i>
+            123 Rue de la Paix, 75002 Paris, France
+          </p>
         </div>
       </div>
     </section>
@@ -120,8 +135,14 @@
 <script setup>
 import { ref } from 'vue'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
+import emailjs from '@emailjs/browser'
 
 useScrollAnimation()
+
+// Your EmailJS credentials
+const EMAILJS_PUBLIC_KEY = 'z5w_dazQn07KNShHA'
+const EMAILJS_SERVICE_ID = 'service_823cc9l'
+const EMAILJS_TEMPLATE_ID = 'template_a2qx607'
 
 const form = ref({
   name: '',
@@ -132,38 +153,54 @@ const form = ref({
 
 const message = ref('')
 const messageClass = ref('')
+const sending = ref(false)
 
-const handleSubmit = () => {
-  if (form.value.name && form.value.email && form.value.message) {
-    // Prepare the email content
-    const subject = encodeURIComponent(form.value.subject || 'New Contact Form Message from SOUTOU')
-    const body = encodeURIComponent(
-      `Name: ${form.value.name}\n` +
-      `Email: ${form.value.email}\n\n` +
-      `Subject: ${form.value.subject || 'No subject'}\n\n` +
-      `Message:\n${form.value.message}\n\n` +
-      `---\nThis message was sent from the SOUTOU contact form.`
-    )
-    
-    // Open user's default email client
-    window.location.href = `mailto:hello@soutou.com?subject=${subject}&body=${body}`
-    
-    // Show success message
-    messageClass.value = 'text-green-600'
-    message.value = `✨ Thank you ${form.value.name}! Your email client will open to send your message. ✨`
-    
-    // Reset form
-    form.value = { name: '', email: '', subject: '', message: '' }
-    
-    setTimeout(() => {
-      message.value = ''
-    }, 5000)
-  } else {
+const handleSubmit = async () => {
+  if (!form.value.name || !form.value.email || !form.value.message) {
     messageClass.value = 'text-red-600'
     message.value = 'Please fill in all required fields.'
     setTimeout(() => {
       message.value = ''
     }, 3000)
+    return
+  }
+
+  sending.value = true
+
+  try {
+    const templateParams = {
+      to_email: 'chloebouabdallah1@gmail.com',
+      from_name: form.value.name,
+      from_email: form.value.email,
+      subject: form.value.subject || 'New Contact Form Message',
+      message: form.value.message,
+      reply_to: form.value.email
+    }
+
+    const response = await emailjs.send(
+      EMAILJS_SERVICE_ID, 
+      EMAILJS_TEMPLATE_ID, 
+      templateParams,
+      EMAILJS_PUBLIC_KEY
+    )
+    
+    messageClass.value = 'text-green-600'
+    message.value = `✨ Thank you ${form.value.name}! Your message has been sent. We'll reply within 24 hours. ✨`
+    
+    form.value = { name: '', email: '', subject: '', message: '' }
+    
+    setTimeout(() => {
+      message.value = ''
+    }, 5000)
+  } catch (error) {
+    console.error('EmailJS Error:', error)
+    messageClass.value = 'text-red-600'
+    message.value = error.text || 'Sorry, there was an error sending your message. Please try again later.'
+    setTimeout(() => {
+      message.value = ''
+    }, 5000)
+  } finally {
+    sending.value = false
   }
 }
 </script>
@@ -176,5 +213,18 @@ const handleSubmit = () => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+.fa-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
