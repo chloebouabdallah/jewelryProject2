@@ -9,6 +9,7 @@
     <Footer />
     <ToastNotification />
     <AuthModal @login-success="handleLoginSuccess" />
+    <Chatbot />
   </div>
 </template>
 
@@ -18,6 +19,7 @@ import Navbar from '@/components/Navbar.vue'
 import Footer from '@/components/Footer.vue'
 import ToastNotification from '@/components/ToastNotification.vue'
 import AuthModal from '@/components/AuthModal.vue'
+import Chatbot from '@/components/Chatbot.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
 
@@ -25,7 +27,6 @@ const authStore = useAuthStore()
 const cartStore = useCartStore()
 
 const handleLoginSuccess = () => {
-  // Add any pending product to cart after successful login
   const added = cartStore.addPendingAfterLogin()
   if (added) {
     console.log('Product added to cart after login')
