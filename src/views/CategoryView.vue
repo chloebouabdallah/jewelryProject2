@@ -111,8 +111,8 @@
                   <div class="flex justify-between items-center mt-1.5 md:mt-2">
                     <span class="text-amber-700 font-bold text-xs sm:text-sm md:text-base">${{ (product.price || 0).toLocaleString() }}</span>
                     <div class="flex gap-1">
-                      <button @click.prevent="toggleFavorite(product.id)" class="w-5 h-5 md:w-7 md:h-7 rounded-full bg-amber-100 transition flex items-center justify-center" :class="favorites[product.id] ? 'text-pink-600 bg-pink-100' : 'text-amber-600 hover:bg-pink-100 hover:text-pink-600'">
-                        <i :class="favorites[product.id] ? 'fas fa-heart' : 'far fa-heart'" class="text-[9px] md:text-xs"></i>
+                      <button @click.prevent="toggleWishlist(product)" class="w-5 h-5 md:w-7 md:h-7 rounded-full bg-amber-100 transition flex items-center justify-center" :class="isInWishlist(product.id) ? 'text-pink-600 bg-pink-100' : 'text-amber-600 hover:bg-pink-100 hover:text-pink-600'">
+                        <i :class="isInWishlist(product.id) ? 'fas fa-heart' : 'far fa-heart'" class="text-[9px] md:text-xs"></i>
                       </button>
                       <button @click.prevent="addToCart(product)" class="w-5 h-5 md:w-7 md:h-7 rounded-full bg-amber-100 text-amber-600 hover:bg-amber-600 hover:text-white transition flex items-center justify-center">
                         <i class="fas fa-shopping-bag text-[9px] md:text-xs"></i>
@@ -140,11 +140,13 @@ import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
+import { useWishlistStore } from '@/stores/wishlist'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
 
 const route = useRoute()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
+const wishlistStore = useWishlistStore()
 
 // Initialize scroll animations
 useScrollAnimation()
@@ -208,6 +210,23 @@ const allProducts = computed(() => {
   return []
 })
 
+// Check if product is in wishlist
+const isInWishlist = (productId) => {
+  return wishlistStore.isInWishlist(productId)
+}
+
+// Toggle wishlist
+const toggleWishlist = (product) => {
+  wishlistStore.toggleWishlist({
+    id: product.id,
+    name: product.name,
+    price: product.price,
+    image: product.image,
+    category: currentCategory.value,
+    badge: product.badge
+  })
+}
+
 // Filter options
 const metals = [
   { value: 'all', label: 'All' },
@@ -250,9 +269,6 @@ const filters = ref({
   gem: 'all',
   style: 'all'
 })
-
-// Favorites
-const favorites = ref({})
 
 // Computed
 const activeFilterCount = computed(() => {
@@ -298,10 +314,6 @@ const clearAllFilters = () => {
     gem: 'all',
     style: 'all'
   }
-}
-
-const toggleFavorite = (productId) => {
-  favorites.value[productId] = !favorites.value[productId]
 }
 
 const addToCart = (product) => {

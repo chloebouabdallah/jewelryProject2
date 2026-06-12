@@ -184,15 +184,17 @@ import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
 import ReviewSection from '@/components/ReviewSection.vue'
+import { useWishlistStore } from '@/stores/wishlist'
 
 const route = useRoute()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
 useScrollAnimation()
+const wishlistStore = useWishlistStore()
 
 const quantity = ref(1)
 const currentImage = ref('')
-const isInWishlist = ref(false)
+
 
 // Complete product database - ALL 24 PRODUCTS
 const productsDatabase = {
@@ -401,6 +403,10 @@ const product = computed(() => {
   const id = parseInt(route.params.id)
   return productsDatabase[id] || null
 })
+const isInWishlist = computed(() => {
+  if (!product.value) return false
+  return wishlistStore.isInWishlist(product.value.id)
+})
 
 const categoryTitle = computed(() => {
   const titles = { necklaces: 'Necklaces', earrings: 'Earrings', rings: 'Rings', bracelets: 'Bracelets' }
@@ -438,8 +444,19 @@ const addToCart = () => {
   }
 }
 
+
+
 const toggleWishlist = () => {
-  isInWishlist.value = !isInWishlist.value
+  if (product.value) {
+    wishlistStore.toggleWishlist({
+      id: product.value.id,
+      name: product.value.name,
+      price: product.value.price,
+      image: product.value.image,
+      category: product.value.category,
+      badge: product.value.badge
+    })
+  }
 }
 
 onMounted(() => {

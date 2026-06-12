@@ -20,11 +20,11 @@
         </div>
         <div class="flex gap-1">
           <button 
-            @click.prevent="toggleFavorite" 
-            class="heart-btn w-5 h-5 md:w-7 md:h-7 rounded-full bg-amber-100 transition flex items-center justify-center"
-            :class="isFavorited ? 'text-pink-600 bg-pink-100' : 'text-amber-600 hover:bg-pink-100 hover:text-pink-600'"
+            @click.prevent="toggleWishlist" 
+            class="w-5 h-5 md:w-7 md:h-7 rounded-full bg-amber-100 transition flex items-center justify-center"
+            :class="isWishlisted ? 'text-pink-600 bg-pink-100' : 'text-amber-600 hover:bg-pink-100 hover:text-pink-600'"
           >
-            <i :class="isFavorited ? 'fas fa-heart' : 'far fa-heart'" class="text-[9px] md:text-xs"></i>
+            <i :class="isWishlisted ? 'fas fa-heart' : 'far fa-heart'" class="text-[9px] md:text-xs"></i>
           </button>
           <button 
             @click.prevent="handleAddToCart" 
@@ -39,9 +39,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
+import { useWishlistStore } from '@/stores/wishlist'
 
 const props = defineProps({
   product: {
@@ -52,16 +53,22 @@ const props = defineProps({
 
 const cartStore = useCartStore()
 const authStore = useAuthStore()
-const isFavorited = ref(false)
+const wishlistStore = useWishlistStore()
 
-const toggleFavorite = () => {
-  isFavorited.value = !isFavorited.value
+const isWishlisted = computed(() => wishlistStore.isInWishlist(props.product.id))
+
+const toggleWishlist = () => {
+  wishlistStore.toggleWishlist({
+    id: props.product.id,
+    name: props.product.name,
+    price: props.product.price,
+    image: props.product.image,
+    category: props.product.category,
+    badge: props.product.badge
+  })
 }
 
 const handleAddToCart = () => {
-  // Use the auth store directly to check authentication
-  const isAuthenticated = authStore.isAuthenticated
-  
   cartStore.addToCart(
     {
       id: props.product.id,
@@ -70,7 +77,7 @@ const handleAddToCart = () => {
       image: props.product.image,
       quantity: 1
     },
-    isAuthenticated,
+    authStore.isAuthenticated,
     authStore.openAuthModal
   )
 }

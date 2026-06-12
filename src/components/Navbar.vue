@@ -28,6 +28,12 @@
         <!-- Heart / Wishlist Icon -->
         <router-link to="/wishlist" class="relative">
           <i class="far fa-heart text-base md:text-xl cursor-pointer hover:text-amber-700 transition text-[#4a3a2a]"></i>
+          <span 
+            v-if="wishlistStore.itemCount > 0"
+            class="wishlist-badge absolute -top-2 -right-2 bg-[#b8926c] text-white text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1"
+          >
+            {{ wishlistStore.itemCount > 99 ? '99+' : wishlistStore.itemCount }}
+          </span>
         </router-link>
         
         <!-- User Icon with Dropdown -->
@@ -43,8 +49,7 @@
                 <p class="text-sm font-semibold text-stone-800">{{ authStore.currentUser?.name || authStore.currentUser?.email?.split('@')[0] }}</p>
                 <p class="text-xs text-stone-500">{{ authStore.currentUser?.email }}</p>
               </div>
-              <router-link to="/orders" class="block px-4 py-2 text-sm text-stone-700 hover:bg-amber-50" @click="closeUserMenu">My Orders</router-link>
-              <router-link to="/wishlist" class="block px-4 py-2 text-sm text-stone-700 hover:bg-amber-50" @click="closeUserMenu">Wishlist</router-link>
+              
               <button @click="handleLogout" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-amber-50">Logout</button>
             </template>
             <template v-else>
@@ -113,10 +118,13 @@ import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import SearchBar from './SearchBar.vue'
 import AuthModal from './AuthModal.vue'
+import { useWishlistStore } from '@/stores/wishlist'
+
 
 const router = useRouter()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
+const wishlistStore = useWishlistStore()
 
 const mobileMenuOpen = ref(false)
 const isScrolled = ref(false)
