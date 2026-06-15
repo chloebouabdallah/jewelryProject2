@@ -139,7 +139,7 @@ import emailjs from '@emailjs/browser'
 
 useScrollAnimation()
 
-// Your EmailJS credentials
+
 const EMAILJS_PUBLIC_KEY = 'z5w_dazQn07KNShHA'
 const EMAILJS_SERVICE_ID = 'service_823cc9l'
 const EMAILJS_TEMPLATE_ID = 'template_a2qx607'
