@@ -91,9 +91,13 @@
                 <span>${{ cartStore.total.toFixed(2) }}</span>
               </div>
               
-              <button @click="checkout" class="w-full mt-6 bg-gradient-to-r from-amber-600 to-amber-500 text-white py-3 rounded-full font-semibold hover:scale-[1.02] transition shadow-md">
+              <!-- Updated: Navigate to checkout page -->
+              <router-link 
+                to="/checkout" 
+                class="block w-full mt-6 bg-gradient-to-r from-amber-600 to-amber-500 text-white py-3 rounded-full font-semibold hover:scale-[1.02] transition shadow-md text-center"
+              >
                 Proceed to Checkout
-              </button>
+              </router-link>
               
               <router-link to="/collections" class="block text-center mt-4 text-sm text-amber-600 hover:underline">
                 ← Continue Shopping
@@ -115,12 +119,4 @@ import { useScrollAnimation } from '@/composables/useScrollAnimation'
 const cartStore = useCartStore()
 const authStore = useAuthStore()
 useScrollAnimation()
-
-const checkout = () => {
-  if (cartStore.items.length === 0) {
-    alert('Your cart is empty. Add some items first!')
-  } else {
-    alert('Thank you for your order! This would proceed to checkout.')
-  }
-}
 </script>
