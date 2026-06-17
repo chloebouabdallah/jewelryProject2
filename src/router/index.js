@@ -53,6 +53,12 @@ const routes = [
     name: 'Checkout',
     component: () => import('@/views/CheckoutView.vue'),
   },
+
+  {
+    path: '/customize',
+    name: 'Customize',
+    component: () => import('@/views/CustomizationView.vue'),
+  },
 ];
 
 const router = createRouter({
