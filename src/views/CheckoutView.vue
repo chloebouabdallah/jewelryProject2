@@ -290,7 +290,7 @@ const cartStore = useCartStore()
 const authStore = useAuthStore()
 useScrollAnimation()
 
-// EmailJS credentials (use your existing ones)
+// EmailJS credentials
 const EMAILJS_PUBLIC_KEY = 'z5w_dazQn07KNShHA'
 const EMAILJS_SERVICE_ID = 'service_823cc9l'
 const EMAILJS_TEMPLATE_ID = 'template_ilcmsch'
@@ -319,7 +319,7 @@ const cardInfo = ref({
 const calculateTotal = () => {
   let total = cartStore.total
   if (paymentMethod.value === 'cod') {
-    total += 5 // COD fee
+    total += 5
   }
   return total
 }
@@ -338,7 +338,7 @@ const sendOrderEmail = async () => {
   ).join('\n')
 
   const templateParams = {
-    to_email: 'chloebouabdallah1@gmail.com', // Your email
+    to_email: 'chloebouabdallah1@gmail.com',
     customer_email: shippingInfo.value.email,
     subject: `New Order from ${shippingInfo.value.firstName} ${shippingInfo.value.lastName}`,
     message: `
@@ -413,7 +413,6 @@ const placeOrder = async () => {
       alert('Please enter your credit card information.')
       return
     }
-    // Basic card validation
     if (cardInfo.value.number.replace(/\s/g, '').length < 15) {
       alert('Please enter a valid card number.')
       return
@@ -423,21 +422,16 @@ const placeOrder = async () => {
   isProcessing.value = true
   
   try {
-    // Send email notification
     const emailSent = await sendOrderEmail()
     
     if (emailSent) {
-      // Clear cart
       cartStore.clearCart()
       
-      // Show success message based on payment method
       const successMessage = paymentMethod.value === 'cod' 
-        ? '🎉 Thank you for your order! You will pay cash upon delivery. A confirmation email has been sent. You will receive another email when your order ships.'
+        ? '🎉 Thank you for your order! You will pay cash upon delivery. A confirmation email has been sent.'
         : '🎉 Thank you for your order! Your jewelry will be shipped soon. A confirmation email has been sent.'
       
       alert(successMessage)
-      
-      // Redirect to home page
       router.push('/')
     } else {
       alert('There was an issue processing your order. Please try again or contact support.')

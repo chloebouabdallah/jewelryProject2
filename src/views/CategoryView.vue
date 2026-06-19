@@ -150,6 +150,7 @@ import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import { useWishlistStore } from '@/stores/wishlist'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
+import { fetchMetalPrices } from '@/services/metalPrices'
 
 const route = useRoute()
 const cartStore = useCartStore()
@@ -169,42 +170,12 @@ const DEFAULT_GOLD_PRICE = 85.50
 const DEFAULT_SILVER_PRICE = 0.85
 
 // Fetch metal prices
-const fetchMetalPrices = async () => {
+const loadMetalPrices = async () => {
   try {
-    // Try cache first
-    const cachedGold = localStorage.getItem('soutou_gold_price')
-    const cachedSilver = localStorage.getItem('soutou_silver_price')
-    const cachedDate = localStorage.getItem('soutou_metal_price_date')
-    
-    if (cachedGold && cachedSilver && cachedDate) {
-      const hoursOld = (Date.now() - parseInt(cachedDate)) / (1000 * 60 * 60)
-      if (hoursOld < 6) {
-        goldPrice.value = parseFloat(cachedGold)
-        silverPrice.value = parseFloat(cachedSilver)
-        return
-      }
-    }
-    
-    // Fetch from API
-    const [goldRes, silverRes] = await Promise.all([
-      fetch('https://api.gold-api.com/price/XAU'),
-      fetch('https://api.gold-api.com/price/XAG')
-    ])
-    
-    if (goldRes.ok) {
-      const data = await goldRes.json()
-      goldPrice.value = data.price || DEFAULT_GOLD_PRICE
-      localStorage.setItem('soutou_gold_price', String(goldPrice.value))
-    }
-    
-    if (silverRes.ok) {
-      const data = await silverRes.json()
-      silverPrice.value = data.price || DEFAULT_SILVER_PRICE
-      localStorage.setItem('soutou_silver_price', String(silverPrice.value))
-    }
-    
-    localStorage.setItem('soutou_metal_price_date', String(Date.now()))
-    
+    const prices = await fetchMetalPrices()
+    goldPrice.value = prices.gold
+    silverPrice.value = prices.silver
+    console.log(`✅ Category view - Gold: $${goldPrice.value}/g, Silver: $${silverPrice.value}/g`)
   } catch (error) {
     console.error('Error fetching metal prices:', error)
     goldPrice.value = DEFAULT_GOLD_PRICE
@@ -220,7 +191,6 @@ const calculateDynamicPrice = (product) => {
   const goldWeight = product.goldWeight || 0
   const silverWeight = product.silverWeight || 0
   
-  // If product has gold, calculate based on current gold price
   if (goldWeight > 0 && goldPrice.value) {
     const originalGoldCost = goldWeight * DEFAULT_GOLD_PRICE
     const goldCost = goldWeight * goldPrice.value
@@ -228,7 +198,6 @@ const calculateDynamicPrice = (product) => {
     price = Math.round(goldCost + otherCosts)
   }
   
-  // If product has silver, calculate based on current silver price
   if (silverWeight > 0 && silverPrice.value) {
     const originalSilverCost = silverWeight * DEFAULT_SILVER_PRICE
     const silverCost = silverWeight * silverPrice.value
@@ -236,7 +205,6 @@ const calculateDynamicPrice = (product) => {
     price = Math.round(silverCost + otherCosts)
   }
   
-  // If product has BOTH gold and silver
   if (goldWeight > 0 && silverWeight > 0 && goldPrice.value && silverPrice.value) {
     const originalGoldCost = goldWeight * DEFAULT_GOLD_PRICE
     const originalSilverCost = silverWeight * DEFAULT_SILVER_PRICE
@@ -414,7 +382,7 @@ const clearAllFilters = () => {
   }
 }
 
-// ========== ✅ ADD TO CART - USES DYNAMIC PRICE ==========
+// ========== ADD TO CART - USES DYNAMIC PRICE ==========
 const addToCart = (product) => {
   const dynamicPrice = product.dynamicPrice || product.price || 0;
   
@@ -422,7 +390,7 @@ const addToCart = (product) => {
     {
       id: product.id,
       name: product.name,
-      price: dynamicPrice, // ✅ Use dynamic price
+      price: dynamicPrice,
       image: product.image,
       quantity: 1,
       goldPrice: goldPrice.value || null,
@@ -430,7 +398,7 @@ const addToCart = (product) => {
       goldWeight: product.goldWeight || 0,
       silverWeight: product.silverWeight || 0,
       metalType: product.metal || 'none',
-      originalPrice: product.price // Store original for reference
+      originalPrice: product.price
     },
     authStore.isAuthenticated,
     authStore.openAuthModal
@@ -446,8 +414,7 @@ watch(currentCategory, () => {
   clearAllFilters()
 })
 
-// Fetch metal prices on mount
 onMounted(() => {
-  fetchMetalPrices()
+  loadMetalPrices()
 })
 </script>

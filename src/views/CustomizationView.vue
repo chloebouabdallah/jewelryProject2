@@ -529,20 +529,20 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useAuthStore } from '@/stores/auth';
-import { useCartStore } from '@/stores/cart';
-import { useScrollAnimation } from '@/composables/useScrollAnimation';
+import { ref, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { useCartStore } from '@/stores/cart'
+import { useScrollAnimation } from '@/composables/useScrollAnimation'
 
-const route = useRoute();
-const router = useRouter();
-const authStore = useAuthStore();
-const cartStore = useCartStore();
-useScrollAnimation();
+const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
+const cartStore = useCartStore()
+useScrollAnimation()
 
 // Get category from URL query parameter
-const category = computed(() => route.query.category || 'ring');
+const category = computed(() => route.query.category || 'ring')
 
 // Category display info
 const categoryDisplay = computed(() => {
@@ -551,23 +551,19 @@ const categoryDisplay = computed(() => {
     earrings: 'Earring',
     rings: 'Ring',
     bracelets: 'Bracelet',
-  };
-  return map[category.value] || 'Ring';
-});
+  }
+  return map[category.value] || 'Ring'
+})
 
 const categoryDescription = computed(() => {
   const map = {
-    necklaces:
-      'Design your perfect pendant or necklace with our customization tool',
+    necklaces: 'Design your perfect pendant or necklace with our customization tool',
     earrings: 'Create unique earrings that perfectly match your style',
     rings: 'Design your dream ring from metal to gemstone',
     bracelets: 'Customize a bracelet that tells your story',
-  };
-  return (
-    map[category.value] ||
-    'Design your perfect piece with our customization tool'
-  );
-});
+  }
+  return map[category.value] || 'Design your perfect piece with our customization tool'
+})
 
 // ========== PRICE CONFIGURATION ==========
 const BASE_PRICES = {
@@ -575,25 +571,22 @@ const BASE_PRICES = {
   necklaces: 1500,
   earrings: 800,
   bracelets: 600,
-};
+}
 
-// Metal prices (additional cost)
 const METAL_PRICES = {
   'yellow-gold': 0,
   'white-gold': 200,
   'rose-gold': 250,
   platinum: 800,
-};
+}
 
-// Setting prices (additional cost)
 const SETTING_PRICES = {
   solitaire: 0,
   halo: 300,
   trilogy: 450,
   pave: 350,
-};
+}
 
-// Carat prices (additional cost)
 const CARAT_PRICES = {
   1.0: 0,
   1.5: 400,
@@ -601,31 +594,29 @@ const CARAT_PRICES = {
   2.5: 1500,
   3.0: 2200,
   4.0: 3500,
-};
+}
 
-// Band prices (additional cost)
 const BAND_PRICES = {
   plain: 0,
   diamond: 350,
   twisted: 200,
   eternity: 500,
-};
+}
 
-// Accent prices (additional cost)
 const ACCENT_PRICES = {
   none: 0,
   pave: 250,
   'micro-pave': 400,
   channel: 300,
-};
+}
 
 // Selection state
-const selectedMetal = ref('all');
-const selectedSetting = ref('all');
-const selectedShape = ref('all');
-const selectedCarat = ref('all');
-const selectedBand = ref('all');
-const selectedAccent = ref('all');
+const selectedMetal = ref('all')
+const selectedSetting = ref('all')
+const selectedShape = ref('all')
+const selectedCarat = ref('all')
+const selectedBand = ref('all')
+const selectedAccent = ref('all')
 
 // Options
 const metals = [
@@ -634,7 +625,7 @@ const metals = [
   { value: 'white-gold', label: 'White Gold' },
   { value: 'rose-gold', label: 'Rose Gold' },
   { value: 'platinum', label: 'Platinum' },
-];
+]
 
 const settingStyles = [
   { value: 'all', label: 'All' },
@@ -642,7 +633,7 @@ const settingStyles = [
   { value: 'halo', label: 'Halo' },
   { value: 'trilogy', label: 'Trilogy' },
   { value: 'pave', label: 'Pavé' },
-];
+]
 
 const shapes = [
   { value: 'all', label: 'All' },
@@ -652,9 +643,9 @@ const shapes = [
   { value: 'marquise', label: 'Marquise' },
   { value: 'oval', label: 'Oval' },
   { value: 'pear', label: 'Pear' },
-];
+]
 
-const carats = ['all', 1.0, 1.5, 2.0, 2.5, 3.0, 4.0];
+const carats = ['all', 1.0, 1.5, 2.0, 2.5, 3.0, 4.0]
 
 const bandTypes = [
   { value: 'all', label: 'All' },
@@ -662,7 +653,7 @@ const bandTypes = [
   { value: 'diamond', label: 'Diamond' },
   { value: 'twisted', label: 'Twisted' },
   { value: 'eternity', label: 'Eternity' },
-];
+]
 
 const accents = [
   { value: 'all', label: 'All' },
@@ -670,76 +661,73 @@ const accents = [
   { value: 'pave', label: 'Pavé' },
   { value: 'micro-pave', label: 'Micro-Pavé' },
   { value: 'channel', label: 'Channel' },
-];
+]
 
 // ========== PRICE COMPUTATIONS ==========
 const basePrice = computed(() => {
-  return BASE_PRICES[category.value] || 1000;
-});
+  return BASE_PRICES[category.value] || 1000
+})
 
 const getMetalUpgradePrice = computed(() => {
-  if (selectedMetal.value === 'all' || selectedMetal.value === 'yellow-gold')
-    return 0;
-  return METAL_PRICES[selectedMetal.value] || 0;
-});
+  if (selectedMetal.value === 'all' || selectedMetal.value === 'yellow-gold') return 0
+  return METAL_PRICES[selectedMetal.value] || 0
+})
 
 const getSettingUpgradePrice = computed(() => {
-  if (selectedSetting.value === 'all' || selectedSetting.value === 'solitaire')
-    return 0;
-  return SETTING_PRICES[selectedSetting.value] || 0;
-});
+  if (selectedSetting.value === 'all' || selectedSetting.value === 'solitaire') return 0
+  return SETTING_PRICES[selectedSetting.value] || 0
+})
 
 const getCaratUpgradePrice = computed(() => {
-  if (selectedCarat.value === 'all' || selectedCarat.value === 1.0) return 0;
-  return CARAT_PRICES[selectedCarat.value] || 0;
-});
+  if (selectedCarat.value === 'all' || selectedCarat.value === 1.0) return 0
+  return CARAT_PRICES[selectedCarat.value] || 0
+})
 
 const getBandUpgradePrice = computed(() => {
-  if (selectedBand.value === 'all' || selectedBand.value === 'plain') return 0;
-  return BAND_PRICES[selectedBand.value] || 0;
-});
+  if (selectedBand.value === 'all' || selectedBand.value === 'plain') return 0
+  return BAND_PRICES[selectedBand.value] || 0
+})
 
 const getAccentUpgradePrice = computed(() => {
-  if (selectedAccent.value === 'all' || selectedAccent.value === 'none')
-    return 0;
-  return ACCENT_PRICES[selectedAccent.value] || 0;
-});
+  if (selectedAccent.value === 'all' || selectedAccent.value === 'none') return 0
+  return ACCENT_PRICES[selectedAccent.value] || 0
+})
 
 const totalPrice = computed(() => {
-  let total = basePrice.value;
-  total += getMetalUpgradePrice.value;
-  total += getSettingUpgradePrice.value;
-  total += getCaratUpgradePrice.value;
-  total += getBandUpgradePrice.value;
-  total += getAccentUpgradePrice.value;
-  return total;
-});
+  let total = basePrice.value
+  total += getMetalUpgradePrice.value
+  total += getSettingUpgradePrice.value
+  total += getCaratUpgradePrice.value
+  total += getBandUpgradePrice.value
+  total += getAccentUpgradePrice.value
+  return total
+})
 
 // Helper getters
 const getMetalLabel = computed(() => {
-  const found = metals.find((m) => m.value === selectedMetal.value);
-  return found ? found.label : '';
-});
+  const found = metals.find((m) => m.value === selectedMetal.value)
+  return found ? found.label : ''
+})
 
 const getSettingLabel = computed(() => {
-  const found = settingStyles.find((s) => s.value === selectedSetting.value);
-  return found ? found.label : '';
-});
+  const found = settingStyles.find((s) => s.value === selectedSetting.value)
+  return found ? found.label : ''
+})
 
 const getShapeLabel = computed(() => {
-  const found = shapes.find((s) => s.value === selectedShape.value);
-  return found ? found.label : '';
-});
+  const found = shapes.find((s) => s.value === selectedShape.value)
+  return found ? found.label : ''
+})
 
 const getBandLabel = computed(() => {
-  const found = bandTypes.find((b) => b.value === selectedBand.value);
-  return found ? found.label : '';
-});
+  const found = bandTypes.find((b) => b.value === selectedBand.value)
+  return found ? found.label : ''
+})
 
 const getAccentLabel = computed(() => {
-  const found = accents.find((a) => a.value === selectedAccent.value);
-  return found ? found.label : '';
-});
+  const found = accents.find((a) => a.value === selectedAccent.value)
+  return found ? found.label : ''
+})
 
 // Check if any customizations were made
 const hasCustomizations = computed(() => {
@@ -750,235 +738,87 @@ const hasCustomizations = computed(() => {
     selectedCarat.value !== 'all' ||
     selectedBand.value !== 'all' ||
     selectedAccent.value !== 'all'
-  );
-});
+  )
+})
 
 // Build full customization details string for cart
 const getCustomizationDescription = () => {
-  let parts = [];
-  if (selectedMetal.value !== 'all') parts.push(getMetalLabel.value);
-  if (selectedSetting.value !== 'all') parts.push(`${getSettingLabel.value} setting`);
-  if (selectedShape.value !== 'all') parts.push(`${getShapeLabel.value} cut`);
-  if (selectedCarat.value !== 'all') parts.push(`${selectedCarat.value}ct diamond`);
-  if (selectedBand.value !== 'all') parts.push(`${getBandLabel.value} band`);
+  let parts = []
+  if (selectedMetal.value !== 'all') parts.push(getMetalLabel.value)
+  if (selectedSetting.value !== 'all') parts.push(`${getSettingLabel.value} setting`)
+  if (selectedShape.value !== 'all') parts.push(`${getShapeLabel.value} cut`)
+  if (selectedCarat.value !== 'all') parts.push(`${selectedCarat.value}ct diamond`)
+  if (selectedBand.value !== 'all') parts.push(`${getBandLabel.value} band`)
   if (selectedAccent.value !== 'all' && selectedAccent.value !== 'none') {
-    parts.push(`${getAccentLabel.value} accents`);
+    parts.push(`${getAccentLabel.value} accents`)
   } else if (selectedAccent.value === 'none') {
-    parts.push('no accents');
+    parts.push('no accents')
   }
-  return parts.join(', ');
-};
+  return parts.join(', ')
+}
 
 // ALL items based on category
 const allCategoryItems = computed(() => {
   const allProducts = {
     rings: [
-      {
-        id: 201,
-        name: 'Silver Diamond Ring',
-        price: 2975,
-        image: '/ring1.jpg',
-        badge: 'Best Seller',
-      },
-      {
-        id: 202,
-        name: 'Rose Gold Morganite Ring',
-        price: 1590,
-        image: '/ring2.webp',
-        badge: 'New',
-      },
-      {
-        id: 203,
-        name: 'Silver Diamond Ring Classic',
-        price: 2250,
-        image: '/ring3.jpg',
-        badge: null,
-      },
-      {
-        id: 204,
-        name: 'Gold Ring Limited',
-        price: 3450,
-        image: '/ring4.jpg',
-        badge: 'Limited',
-      },
-      {
-        id: 205,
-        name: 'Gold Ring',
-        price: 450,
-        image: '/ring5.jpg',
-        badge: null,
-      },
-      {
-        id: 206,
-        name: 'Gold Diamond Ring',
-        price: 2450,
-        image: '/ring6.jpg',
-        badge: 'Limited',
-      },
+      { id: 201, name: 'Silver Diamond Ring', price: 2975, image: '/ring1.jpg', badge: 'Best Seller' },
+      { id: 202, name: 'Rose Gold Morganite Ring', price: 1590, image: '/ring2.webp', badge: 'New' },
+      { id: 203, name: 'Silver Diamond Ring Classic', price: 2250, image: '/ring3.jpg', badge: null },
+      { id: 204, name: 'Gold Ring Limited', price: 3450, image: '/ring4.jpg', badge: 'Limited' },
+      { id: 205, name: 'Gold Ring', price: 450, image: '/ring5.jpg', badge: null },
+      { id: 206, name: 'Gold Diamond Ring', price: 2450, image: '/ring6.jpg', badge: 'Limited' },
     ],
     necklaces: [
-      {
-        id: 1,
-        name: 'Celestial Diamond Necklace',
-        price: 3850,
-        image: '/necklace2.webp',
-        badge: 'Best Seller',
-      },
-      {
-        id: 2,
-        name: 'Silver Diamond Pendant',
-        price: 2450,
-        image: '/necklace3.jpg',
-        badge: 'New',
-      },
-      {
-        id: 3,
-        name: 'Gold Necklace',
-        price: 1890,
-        image: '/necklace4.jpg',
-        badge: null,
-      },
-      {
-        id: 4,
-        name: 'Gold Necklace Limited',
-        price: 5290,
-        image: '/necklace5.jpg',
-        badge: 'Limited',
-      },
-      {
-        id: 5,
-        name: 'Gold Diamond Necklace',
-        price: 5290,
-        image: '/necklace6.jpg',
-        badge: 'Limited',
-      },
-      {
-        id: 6,
-        name: 'Silver Diamond Necklace',
-        price: 5290,
-        image: '/necklace7.jpg',
-        badge: 'Limited',
-      },
+      { id: 1, name: 'Celestial Diamond Necklace', price: 3850, image: '/necklace2.webp', badge: 'Best Seller' },
+      { id: 2, name: 'Silver Diamond Pendant', price: 2450, image: '/necklace3.jpg', badge: 'New' },
+      { id: 3, name: 'Gold Necklace', price: 1890, image: '/necklace4.jpg', badge: null },
+      { id: 4, name: 'Gold Necklace Limited', price: 5290, image: '/necklace5.jpg', badge: 'Limited' },
+      { id: 5, name: 'Gold Diamond Necklace', price: 5290, image: '/necklace6.jpg', badge: 'Limited' },
+      { id: 6, name: 'Silver Diamond Necklace', price: 5290, image: '/necklace7.jpg', badge: 'Limited' },
     ],
     earrings: [
-      {
-        id: 101,
-        name: 'Gold Earrings',
-        price: 5290,
-        image: '/earring1.avif',
-        badge: 'Best Seller',
-      },
-      {
-        id: 102,
-        name: 'Rose Gold Diamond Earrings',
-        price: 1890,
-        image: '/earring2.jpg',
-        badge: 'New',
-      },
-      {
-        id: 103,
-        name: 'Rose Gold Diamond Hoops',
-        price: 890,
-        image: '/earring3.jpg',
-        badge: null,
-      },
-      {
-        id: 104,
-        name: 'Gold Diamond Studs',
-        price: 2450,
-        image: '/earring4.jpg',
-        badge: 'Limited',
-      },
-      {
-        id: 105,
-        name: 'Gold Earrings Vintage',
-        price: 2450,
-        image: '/earring5.jpg',
-        badge: 'Limited',
-      },
-      {
-        id: 106,
-        name: 'Gold Earrings Modern',
-        price: 2450,
-        image: '/earring6.jpg',
-        badge: 'Limited',
-      },
+      { id: 101, name: 'Gold Earrings', price: 5290, image: '/earring1.avif', badge: 'Best Seller' },
+      { id: 102, name: 'Rose Gold Diamond Earrings', price: 1890, image: '/earring2.jpg', badge: 'New' },
+      { id: 103, name: 'Rose Gold Diamond Hoops', price: 890, image: '/earring3.jpg', badge: null },
+      { id: 104, name: 'Gold Diamond Studs', price: 2450, image: '/earring4.jpg', badge: 'Limited' },
+      { id: 105, name: 'Gold Earrings Vintage', price: 2450, image: '/earring5.jpg', badge: 'Limited' },
+      { id: 106, name: 'Gold Earrings Modern', price: 2450, image: '/earring6.jpg', badge: 'Limited' },
     ],
     bracelets: [
-      {
-        id: 301,
-        name: 'Silver Diamond Bracelet',
-        price: 299,
-        image: '/bracelet1.webp',
-        badge: 'Best Seller',
-      },
-      {
-        id: 302,
-        name: 'Gold Diamond Tennis Bracelet',
-        price: 2890,
-        image: '/bracelet2.jpg',
-        badge: 'New',
-      },
-      {
-        id: 303,
-        name: 'Gold Diamond Chain Bracelet',
-        price: 590,
-        image: '/bracelet3.jpg',
-        badge: null,
-      },
-      {
-        id: 304,
-        name: 'Silver Diamond Bracelet Vintage',
-        price: 450,
-        image: '/bracelet4.jpg',
-        badge: 'Limited',
-      },
-      {
-        id: 305,
-        name: 'Silver Diamond Bracelet Minimalist',
-        price: 450,
-        image: '/bracelet5.jpg',
-        badge: 'Limited',
-      },
-      {
-        id: 306,
-        name: 'Silver Diamond Bracelet Classic',
-        price: 450,
-        image: '/bracelet6.jpg',
-        badge: 'Limited',
-      },
+      { id: 301, name: 'Silver Diamond Bracelet', price: 299, image: '/bracelet1.webp', badge: 'Best Seller' },
+      { id: 302, name: 'Gold Diamond Tennis Bracelet', price: 2890, image: '/bracelet2.jpg', badge: 'New' },
+      { id: 303, name: 'Gold Diamond Chain Bracelet', price: 590, image: '/bracelet3.jpg', badge: null },
+      { id: 304, name: 'Silver Diamond Bracelet Vintage', price: 450, image: '/bracelet4.jpg', badge: 'Limited' },
+      { id: 305, name: 'Silver Diamond Bracelet Minimalist', price: 450, image: '/bracelet5.jpg', badge: 'Limited' },
+      { id: 306, name: 'Silver Diamond Bracelet Classic', price: 450, image: '/bracelet6.jpg', badge: 'Limited' },
     ],
-  };
-  return allProducts[category.value] || allProducts.rings;
-});
+  }
+  return allProducts[category.value] || allProducts.rings
+})
 
 // ========== METHODS ==========
 
 const goToProduct = (productId) => {
-  router.push(`/product/${productId}`);
-};
+  router.push(`/product/${productId}`)
+}
 
 // ========== ADD TO CART ==========
 const addToCart = () => {
   if (!hasCustomizations.value) {
-    alert('Please select at least one customization option first!');
-    return;
+    alert('Please select at least one customization option first!')
+    return
   }
 
-  // Build the full customization description
-  const customizationDescription = getCustomizationDescription();
+  const customizationDescription = getCustomizationDescription()
 
-  // Create custom item for cart (NO IMAGE, NO QUANTITY)
   const customItem = {
     id: `custom-${category.value}-${Date.now()}`,
     name: `Custom ${categoryDisplay.value}`,
     price: totalPrice.value,
-    image: '', // No image
+    image: '',
     quantity: 1,
     isCustom: true,
-    // Full description with all details - displayed in cart
     description: `✨ Custom ${categoryDisplay.value}: ${customizationDescription}`,
-    // Store individual details for reference
     customizationDetails: {
       metal: getMetalLabel.value || 'Not specified',
       setting: getSettingLabel.value || 'Not specified',
@@ -994,32 +834,29 @@ const addToCart = () => {
     band: getBandLabel.value,
     accent: getAccentLabel.value,
     category: categoryDisplay.value,
-  };
+  }
 
-  // Add to cart store
   cartStore.addToCart(
     customItem,
     authStore.isAuthenticated,
     authStore.openAuthModal
-  );
+  )
 
-  // Show success message
   alert(
     `✅ Custom ${categoryDisplay.value} added to cart!\n\n` +
-      `📝 Details: ${customizationDescription}\n` +
-      `💰 Price: $${totalPrice.value.toLocaleString()}\n\n` +
-      'Go to cart to checkout or continue customizing! 💎'
-  );
+    `📝 Details: ${customizationDescription}\n` +
+    `💰 Price: $${totalPrice.value.toLocaleString()}\n\n` +
+    'Go to cart to checkout or continue customizing! 💎'
+  )
 
-  // Reset customization after adding to cart
-  resetCustomization();
-};
+  resetCustomization()
+}
 
 // ========== SUBMIT CUSTOMIZATION (Get Quote) ==========
 const submitCustomization = () => {
   if (!hasCustomizations.value) {
-    alert('Please select at least one customization option first!');
-    return;
+    alert('Please select at least one customization option first!')
+    return
   }
 
   const customization = {
@@ -1027,55 +864,49 @@ const submitCustomization = () => {
     metal: getMetalLabel.value || 'Not specified',
     setting: getSettingLabel.value || 'Not specified',
     shape: getShapeLabel.value || 'Not specified',
-    carat:
-      selectedCarat.value === 'all'
-        ? 'Not specified'
-        : selectedCarat.value + 'ct',
+    carat: selectedCarat.value === 'all' ? 'Not specified' : selectedCarat.value + 'ct',
     band: getBandLabel.value || 'Not specified',
     accent: getAccentLabel.value || 'Not specified',
     estimatedPrice: totalPrice.value,
     user: authStore.currentUser?.email || 'Guest',
     date: new Date().toISOString(),
-  };
+  }
 
-  console.log('Customization submitted:', customization);
+  console.log('Customization submitted:', customization)
 
-  // Save to history
-  saveCustomizationToHistory(customization);
+  saveCustomizationToHistory(customization)
 
-  // Show success message with price
   alert(
     '✅ Your customization request has been submitted!\n\n' +
-      `Category: ${customization.category}\n` +
-      `Metal: ${customization.metal}\n` +
-      `Setting: ${customization.setting}\n` +
-      `Shape: ${customization.shape}\n` +
-      `Carat: ${customization.carat}\n` +
-      `Band: ${customization.band}\n` +
-      `Accents: ${customization.accent}\n\n` +
-      `💰 Estimated Price: $${customization.estimatedPrice.toLocaleString()}\n\n` +
-      'Our team will contact you within 24 hours with a final quote! 💎',
-  );
+    `Category: ${customization.category}\n` +
+    `Metal: ${customization.metal}\n` +
+    `Setting: ${customization.setting}\n` +
+    `Shape: ${customization.shape}\n` +
+    `Carat: ${customization.carat}\n` +
+    `Band: ${customization.band}\n` +
+    `Accents: ${customization.accent}\n\n` +
+    `💰 Estimated Price: $${customization.estimatedPrice.toLocaleString()}\n\n` +
+    'Our team will contact you within 24 hours with a final quote! 💎'
+  )
 
-  // Reset everything
-  resetCustomization();
-};
+  resetCustomization()
+}
 
 const saveCustomizationToHistory = (customization) => {
-  const historyKey = `soutou_customizations_${authStore.currentUser?.email || 'guest'}`;
-  const existing = JSON.parse(localStorage.getItem(historyKey) || '[]');
-  existing.push(customization);
-  localStorage.setItem(historyKey, JSON.stringify(existing));
-};
+  const historyKey = `soutou_customizations_${authStore.currentUser?.email || 'guest'}`
+  const existing = JSON.parse(localStorage.getItem(historyKey) || '[]')
+  existing.push(customization)
+  localStorage.setItem(historyKey, JSON.stringify(existing))
+}
 
 const resetCustomization = () => {
-  selectedMetal.value = 'all';
-  selectedSetting.value = 'all';
-  selectedShape.value = 'all';
-  selectedCarat.value = 'all';
-  selectedBand.value = 'all';
-  selectedAccent.value = 'all';
-};
+  selectedMetal.value = 'all'
+  selectedSetting.value = 'all'
+  selectedShape.value = 'all'
+  selectedCarat.value = 'all'
+  selectedBand.value = 'all'
+  selectedAccent.value = 'all'
+}
 </script>
 
 <style scoped>

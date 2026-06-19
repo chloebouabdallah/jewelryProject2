@@ -40,7 +40,7 @@
                   <span class="text-amber-400">✦</span> Gold: ${{ goldPrice.toFixed(2) }}/g
                 </span>
                 <span v-if="silverPrice && hasSilver" class="flex items-center gap-1.5">
-                  <span class="text-stone-300">◈</span> Silver: ${{ (silverPrice * 31.1).toFixed(2) }}/oz
+                  <span class="text-stone-300">◈</span> Silver: ${{ silverPrice.toFixed(2) }}/g
                 </span>
                 <span class="text-[8px] text-green-400">● Live</span>
               </div>
@@ -228,6 +228,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
 import ReviewSection from '@/components/ReviewSection.vue'
 import { useWishlistStore } from '@/stores/wishlist'
+import { fetchMetalPrices } from '@/services/metalPrices'
 
 const route = useRoute()
 const cartStore = useCartStore()
@@ -237,77 +238,37 @@ const wishlistStore = useWishlistStore()
 
 const quantity = ref(1)
 const currentImage = ref('')
-const goldPrice = ref(null)
-const silverPrice = ref(null)
+const goldPrice = ref(85.50) // This is now per gram
+const silverPrice = ref(0.85) // This is now per gram
+const goldPricePerOunce = ref(0) // Store for display
+const silverPricePerOunce = ref(0) // Store for display
 const isLoadingMetal = ref(false)
 const goldPriceUpdated = ref(false)
 const silverPriceUpdated = ref(false)
 
-const DEFAULT_GOLD_PRICE = 85.50 // USD per gram
-const DEFAULT_SILVER_PRICE = 0.85 // USD per gram
+const DEFAULT_GOLD_PRICE = 85.50
+const DEFAULT_SILVER_PRICE = 0.85
 
 // ========== METAL PRICE FETCHING ==========
-async function fetchMetalPrices() {
+async function loadMetalPrices() {
   isLoadingMetal.value = true
   
   try {
-    // Check cached prices first
-    const cachedGold = localStorage.getItem('soutou_gold_price')
-    const cachedSilver = localStorage.getItem('soutou_silver_price')
-    const cachedDate = localStorage.getItem('soutou_metal_price_date')
+    const prices = await fetchMetalPrices()
+    goldPrice.value = prices.gold // This is per gram
+    silverPrice.value = prices.silver // This is per gram
+    goldPricePerOunce.value = prices.goldPerOunce || 0
+    silverPricePerOunce.value = prices.silverPerOunce || 0
+    goldPriceUpdated.value = !prices.fromCache
+    silverPriceUpdated.value = !prices.fromCache
     
-    if (cachedGold && cachedSilver && cachedDate) {
-      const dateDiff = Date.now() - parseInt(cachedDate)
-      const hoursDiff = dateDiff / (1000 * 60 * 60)
-      if (hoursDiff < 6) {
-        goldPrice.value = parseFloat(cachedGold)
-        silverPrice.value = parseFloat(cachedSilver)
-        goldPriceUpdated.value = false
-        silverPriceUpdated.value = false
-        isLoadingMetal.value = false
-        return
-      }
-    }
-    
-    // Try the free API
-    try {
-      const [goldRes, silverRes] = await Promise.all([
-        fetch('https://api.gold-api.com/price/XAU'),
-        fetch('https://api.gold-api.com/price/XAG')
-      ])
-      
-      if (goldRes.ok) {
-        const data = await goldRes.json()
-        goldPrice.value = data.price || DEFAULT_GOLD_PRICE
-        goldPriceUpdated.value = true
-        localStorage.setItem('soutou_gold_price', String(goldPrice.value))
-      }
-      
-      if (silverRes.ok) {
-        const data = await silverRes.json()
-        silverPrice.value = data.price || DEFAULT_SILVER_PRICE
-        silverPriceUpdated.value = true
-        localStorage.setItem('soutou_silver_price', String(silverPrice.value))
-      }
-      
-      localStorage.setItem('soutou_metal_price_date', String(Date.now()))
-      
-    } catch (e) {
-      console.log('API failed, using defaults...', e)
-      goldPrice.value = DEFAULT_GOLD_PRICE
-      silverPrice.value = DEFAULT_SILVER_PRICE
-    }
-    
-    // Use defaults if still null
-    if (!goldPrice.value) goldPrice.value = DEFAULT_GOLD_PRICE
-    if (!silverPrice.value) silverPrice.value = DEFAULT_SILVER_PRICE
-    
-    isLoadingMetal.value = false
-    
+    console.log(`✅ Gold: $${goldPrice.value.toFixed(2)}/g ($${goldPricePerOunce.value.toFixed(2)}/oz)`);
+    console.log(`✅ Silver: $${silverPrice.value.toFixed(4)}/g ($${silverPricePerOunce.value.toFixed(2)}/oz)`);
   } catch (error) {
-    console.error('Error fetching metal prices:', error)
+    console.error('Error loading metal prices:', error)
     goldPrice.value = DEFAULT_GOLD_PRICE
     silverPrice.value = DEFAULT_SILVER_PRICE
+  } finally {
     isLoadingMetal.value = false
   }
 }
@@ -575,20 +536,23 @@ const displayPrice = computed(() => {
   
   let dynamicPrice = product.value.price
   
-  // If product has gold and gold price is available
+  // If product has gold and gold price is available (per gram)
   if (hasGold.value && goldPrice.value) {
+    // goldPrice is per gram, multiply by weight in grams
     const goldCost = product.value.goldWeight * goldPrice.value
     const originalGoldCost = product.value.goldWeight * DEFAULT_GOLD_PRICE
     const otherCosts = Math.max(0, product.value.price - originalGoldCost)
     dynamicPrice = Math.round(goldCost + otherCosts)
+    console.log(`💰 Gold calculation: ${product.value.goldWeight}g × $${goldPrice.value.toFixed(2)}/g = $${goldCost.toFixed(2)}`);
   }
   
-  // If product has silver and silver price is available
+  // If product has silver and silver price is available (per gram)
   if (hasSilver.value && silverPrice.value) {
     const silverCost = product.value.silverWeight * silverPrice.value
     const originalSilverCost = product.value.silverWeight * DEFAULT_SILVER_PRICE
     const otherCosts = Math.max(0, product.value.price - originalSilverCost)
     dynamicPrice = Math.round(silverCost + otherCosts)
+    console.log(`💰 Silver calculation: ${product.value.silverWeight}g × $${silverPrice.value.toFixed(4)}/g = $${silverCost.toFixed(2)}`);
   }
   
   // If product has BOTH gold and silver
@@ -657,17 +621,16 @@ const decrementQuantity = () => {
   if (quantity.value > 1) quantity.value--
 }
 
-// ========== ✅ ADD TO CART - USES DYNAMIC PRICE ==========
+// ========== ADD TO CART - USES DYNAMIC PRICE ==========
 const addToCart = () => {
   if (product.value) {
-    // Use the calculated dynamic price from displayPrice
     const dynamicPrice = displayPrice.value || product.value.price;
     
     cartStore.addToCart(
       {
         id: product.value.id,
         name: product.value.name,
-        price: dynamicPrice, // ✅ This is the updated price from gold/silver
+        price: dynamicPrice,
         image: product.value.image,
         quantity: quantity.value,
         goldPrice: goldPrice.value || null,
@@ -675,7 +638,7 @@ const addToCart = () => {
         goldWeight: product.value.goldWeight || 0,
         silverWeight: product.value.silverWeight || 0,
         metalType: product.value.metalType || 'none',
-        originalPrice: product.value.price // Store original for reference
+        originalPrice: product.value.price
       },
       authStore.isAuthenticated,
       authStore.openAuthModal
@@ -701,8 +664,21 @@ onMounted(() => {
     currentImage.value = product.value.image
   }
   
-  // Fetch metal prices
-  fetchMetalPrices()
+  // Load prices immediately
+  loadMetalPrices()
+  
+  // Listen for background price updates
+  window.addEventListener('metalPricesUpdated', (event) => {
+    console.log('🔄 Received price update event:', event.detail);
+    if (event.detail.gold) {
+      goldPrice.value = event.detail.gold;
+      goldPriceUpdated.value = true;
+    }
+    if (event.detail.silver) {
+      silverPrice.value = event.detail.silver;
+      silverPriceUpdated.value = true;
+    }
+  });
 })
 </script>
 
