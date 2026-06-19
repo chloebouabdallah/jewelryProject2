@@ -22,7 +22,7 @@
       
       <!-- Icons -->
       <div class="flex items-center gap-3 md:gap-4">
-        <!-- Search Icon - Now clickable -->
+        <!-- Search Icon -->
         <i @click="openSearchBar" class="fas fa-search text-base md:text-xl cursor-pointer hover:text-amber-700 transition text-[#4a3a2a]"></i>
         
         <!-- Heart / Wishlist Icon -->
@@ -48,7 +48,13 @@
               <div class="px-4 py-2 border-b border-amber-100">
                 <p class="text-sm font-semibold text-stone-800">{{ authStore.currentUser?.name || authStore.currentUser?.email?.split('@')[0] }}</p>
                 <p class="text-xs text-stone-500">{{ authStore.currentUser?.email }}</p>
+                <p class="text-[10px] text-amber-500 mt-0.5">Logged in with {{ authStore.currentUser?.provider || 'email' }}</p>
               </div>
+              
+              <!-- Settings Link -->
+              <router-link to="/settings" class="block w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-amber-50" @click="closeUserMenu">
+                <i class="fas fa-cog mr-2"></i> Settings
+              </router-link>
               
               <button @click="handleLogout" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-amber-50">Logout</button>
             </template>
@@ -59,7 +65,7 @@
           </div>
         </div>
         
-        <!-- Cart Icon with Badge - Only show badge when logged in -->
+        <!-- Cart Icon -->
         <div class="relative cursor-pointer" @click="goToCart">
           <i class="fas fa-shopping-bag text-base md:text-xl hover:text-amber-700 transition text-[#4a3a2a]"></i>
           <span 
@@ -93,6 +99,9 @@
         <div class="pt-2 border-t border-amber-100 mt-1">
           <template v-if="authStore.isAuthenticated">
             <div class="py-2 text-stone-600 text-sm">Hello, {{ authStore.currentUser?.name || authStore.currentUser?.email?.split('@')[0] }}</div>
+            <router-link to="/settings" class="py-2 block w-full text-left" @click="mobileMenuOpen = false">
+              <i class="fas fa-cog mr-2"></i> Settings
+            </router-link>
             <button @click="handleLogoutMobile" class="py-2 text-red-600 w-full text-left">Logout</button>
           </template>
           <template v-else>
@@ -104,10 +113,7 @@
     </Transition>
   </nav>
   
-  <!-- Search Bar Component -->
   <SearchBar ref="searchBarRef" />
-  
-  <!-- Auth Modal -->
   <AuthModal />
 </template>
 
@@ -119,7 +125,6 @@ import { useAuthStore } from '@/stores/auth'
 import SearchBar from './SearchBar.vue'
 import AuthModal from './AuthModal.vue'
 import { useWishlistStore } from '@/stores/wishlist'
-
 
 const router = useRouter()
 const cartStore = useCartStore()
@@ -144,14 +149,12 @@ const navbarClass = computed(() => ({
   'bg-[#f5e6d8]/95': !isScrolled.value
 }))
 
-// Search bar functions
 const openSearchBar = () => {
   if (searchBarRef.value) {
     searchBarRef.value.openSearch()
   }
 }
 
-// Toggle user menu
 const toggleUserMenu = () => {
   userMenuOpen.value = !userMenuOpen.value
 }
@@ -160,7 +163,6 @@ const closeUserMenu = () => {
   userMenuOpen.value = false
 }
 
-// Close user menu when clicking outside
 const handleClickOutside = (event) => {
   const userButton = document.querySelector('.fa-user')?.parentElement
   const userMenu = document.querySelector('.absolute.right-0.mt-2')
@@ -169,7 +171,6 @@ const handleClickOutside = (event) => {
   }
 }
 
-// Auth handlers
 const handleLogin = () => {
   authStore.openAuthModal('login')
   userMenuOpen.value = false
@@ -185,7 +186,6 @@ const handleLogout = () => {
   userMenuOpen.value = false
 }
 
-// Mobile auth handlers
 const handleLoginMobile = () => {
   authStore.openAuthModal('login')
   mobileMenuOpen.value = false
@@ -205,7 +205,6 @@ const goToCart = () => {
   router.push('/cart')
 }
 
-// Scroll handler
 const handleScroll = () => {
   isScrolled.value = window.scrollY > 50
 }

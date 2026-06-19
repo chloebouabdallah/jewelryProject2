@@ -18,13 +18,12 @@ export const useAuthStore = defineStore('auth', () => {
     return new Promise((resolve, reject) => {
       setTimeout(() => {
         if (email && password && email.includes('@')) {
-          user.value = { email, name: email.split('@')[0] }
+          user.value = { email, name: email.split('@')[0], provider: 'email' }
           isAuthenticated.value = true
           showAuthModal.value = false
           
           console.log(`🔐 LOGIN SUCCESS: ${email}`)
           
-          // Load user's cart (will restore from localStorage)
           const cartStore = useCartStore()
           cartStore.setUser(email)
           
@@ -40,13 +39,12 @@ export const useAuthStore = defineStore('auth', () => {
     return new Promise((resolve, reject) => {
       setTimeout(() => {
         if (name && email && password && email.includes('@')) {
-          user.value = { name, email }
+          user.value = { name, email, provider: 'email' }
           isAuthenticated.value = true
           showAuthModal.value = false
           
           console.log(`🔐 SIGNUP SUCCESS: ${email}`)
           
-          // Set user for cart (will create new empty cart if doesn't exist)
           const cartStore = useCartStore()
           cartStore.setUser(email)
           
@@ -58,13 +56,29 @@ export const useAuthStore = defineStore('auth', () => {
     })
   }
   
+  // Social Login (Google/Facebook)
+  function socialLogin(userData) {
+    user.value = {
+      name: userData.name,
+      email: userData.email,
+      provider: userData.provider || 'social'
+    }
+    isAuthenticated.value = true
+    showAuthModal.value = false
+    
+    console.log(`🔐 SOCIAL LOGIN SUCCESS: ${userData.email} via ${userData.provider}`)
+    
+    const cartStore = useCartStore()
+    cartStore.setUser(userData.email)
+    saveToLocalStorage()
+  }
+  
   function logout() {
     const cartStore = useCartStore()
     const userEmail = cartStore.getUserEmail()
     
-    console.log(`🚪 LOGOUT: ${userEmail}, preserving cart in localStorage`)
+    console.log(`🚪 LOGOUT: ${userEmail}`)
     
-    // Just clear the display, keep the cart saved in localStorage
     cartStore.clearUserCartDisplay()
     
     user.value = null
@@ -91,12 +105,10 @@ export const useAuthStore = defineStore('auth', () => {
       
       console.log(`✅ AUTH RESTORED: ${user.value.email}`)
       
-      // Load user's cart
       const cartStore = useCartStore()
       cartStore.setUser(user.value.email)
     } else {
       console.log(`👤 NO AUTH, guest mode`)
-      // Guest cart
       const cartStore = useCartStore()
       cartStore.setUser(null)
     }
@@ -117,6 +129,7 @@ export const useAuthStore = defineStore('auth', () => {
     currentUser,
     login,
     signup,
+    socialLogin,
     logout,
     openAuthModal,
     closeAuthModal,
