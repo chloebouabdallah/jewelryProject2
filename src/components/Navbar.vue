@@ -83,32 +83,20 @@
       </div>
     </div>
     
-    <!-- Mobile Menu -->
+    <!-- Mobile Menu - Navigation Links Only -->
     <Transition name="slide-down">
       <div v-if="mobileMenuOpen" class="md:hidden bg-white/95 backdrop-blur-lg border-t border-amber-100 py-3 px-5 flex flex-col gap-2 text-[#3e2c24] font-medium shadow-lg">
         <router-link 
           v-for="link in navLinks" 
           :key="link.path"
           :to="link.path"
-          class="py-2 border-b border-amber-100"
+          class="py-2.5 border-b border-amber-100 last:border-b-0"
           :class="{ 'text-amber-800': $route.path === link.path }"
           @click="mobileMenuOpen = false"
         >
           {{ link.name }}
         </router-link>
-        <div class="pt-2 border-t border-amber-100 mt-1">
-          <template v-if="authStore.isAuthenticated">
-            <div class="py-2 text-stone-600 text-sm">Hello, {{ authStore.currentUser?.name || authStore.currentUser?.email?.split('@')[0] }}</div>
-            <router-link to="/settings" class="py-2 block w-full text-left" @click="mobileMenuOpen = false">
-              <i class="fas fa-cog mr-2"></i> Settings
-            </router-link>
-            <button @click="handleLogoutMobile" class="py-2 text-red-600 w-full text-left">Logout</button>
-          </template>
-          <template v-else>
-            <button @click="handleLoginMobile" class="py-2 w-full text-left">Login</button>
-            <button @click="handleSignupMobile" class="py-2 w-full text-left">Sign Up</button>
-          </template>
-        </div>
+        <!-- ✅ REMOVED login/signup and settings from mobile menu -->
       </div>
     </Transition>
   </nav>
@@ -186,6 +174,7 @@ const handleLogout = () => {
   userMenuOpen.value = false
 }
 
+// Mobile handlers - just close the menu, auth is handled by the user icon
 const handleLoginMobile = () => {
   authStore.openAuthModal('login')
   mobileMenuOpen.value = false

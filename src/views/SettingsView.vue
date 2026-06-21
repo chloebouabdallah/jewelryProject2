@@ -37,7 +37,6 @@
                     :src="profileImage" 
                     alt="Profile" 
                     class="w-full h-full object-cover"
-                    @error="handleImageError"
                   >
                   <i v-else class="fas fa-user text-5xl text-amber-400"></i>
                 </div>
@@ -212,15 +211,6 @@
       </div>
       
     </div>
-    
-    <!-- Crop Modal -->
-    <CropModal
-      v-if="showCropModal"
-      :image="cropImage"
-      @crop="handleCropConfirm"
-      @cancel="cancelCrop"
-    />
-    
   </main>
 </template>
 
@@ -228,7 +218,6 @@
 import { ref, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
-import CropModal from '@/components/CropModal.vue'
 
 const authStore = useAuthStore()
 useScrollAnimation()
@@ -237,8 +226,6 @@ useScrollAnimation()
 const fileInput = ref(null)
 const profileImage = ref(null)
 const isUploading = ref(false)
-const showCropModal = ref(false)
-const cropImage = ref(null)
 
 // Edit Form
 const editForm = ref({
@@ -276,18 +263,9 @@ const loadUserData = () => {
     
     // Load profile image from localStorage
     const savedImage = localStorage.getItem('soutou_profile_image')
-    console.log('🔍 Checking for saved image:', savedImage ? 'Found (length: ' + savedImage.length + ')' : 'Not found')
-    
-    if (savedImage) {
-      // Validate it's a proper image data URL
-      if (savedImage.startsWith('data:image')) {
-        profileImage.value = savedImage
-        console.log('✅ Profile image loaded from localStorage')
-      } else {
-        console.log('❌ Saved image is not a valid data URL, removing')
-        localStorage.removeItem('soutou_profile_image')
-        profileImage.value = null
-      }
+    if (savedImage && savedImage.startsWith('data:image')) {
+      profileImage.value = savedImage
+      console.log('✅ Profile image loaded from localStorage')
     } else {
       profileImage.value = null
       console.log('ℹ️ No profile image found')
@@ -335,67 +313,52 @@ const handleFileSelect = (event) => {
     return
   }
   
-  // Read file
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    console.log('📸 Image loaded for cropping')
-    const imageDataUrl = e.target.result
-    cropImage.value = imageDataUrl
-    showCropModal.value = true
-    console.log('🔍 Crop modal opened')
-  }
-  reader.onerror = (e) => {
-    console.error('❌ Error reading file:', e)
-    alert('Error reading file. Please try again.')
-  }
-  reader.readAsDataURL(file)
-  
-  // Reset input
-  event.target.value = ''
-}
-
-// Handle crop confirmation
-const handleCropConfirm = (croppedDataUrl) => {
-  console.log('✂️ Crop confirmed, saving image...')
-  showCropModal.value = false
-  
   // Show loading state
   isUploading.value = true
   
-  // Save to localStorage
-  try {
-    // Store the image data URL directly in localStorage
-    localStorage.setItem('soutou_profile_image', croppedDataUrl)
-    console.log('✅ Profile image saved to localStorage, length:', croppedDataUrl.length)
-    
-    // Update the display
-    profileImage.value = croppedDataUrl
-    
-    // Force a small delay to ensure localStorage is written
-    setTimeout(() => {
-      isUploading.value = false
+  // Read file and save directly (no cropping)
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
+      const imageDataUrl = e.target.result
+      console.log('📸 Image loaded, saving to localStorage...')
+      
+      // Save to localStorage
+      localStorage.setItem('soutou_profile_image', imageDataUrl)
+      
+      // Update display
+      profileImage.value = imageDataUrl
+      
+      console.log('✅ Profile image saved successfully! Length:', imageDataUrl.length)
+      
       // Verify it was saved
       const verify = localStorage.getItem('soutou_profile_image')
       if (verify) {
         console.log('✅ Verified: Image is in localStorage')
         alert('✅ Profile photo updated successfully!')
       } else {
-        console.log('❌ Verification failed: Image not in localStorage')
-        alert('⚠️ Image saved but verification failed. Please try again.')
+        console.log('❌ Verification failed')
+        alert('⚠️ Error saving image. Please try again.')
       }
-    }, 300)
-    
-  } catch (error) {
-    console.error('❌ Error saving image to localStorage:', error)
-    isUploading.value = false
-    alert('Error saving image. Please try again. Error: ' + error.message)
+      
+    } catch (error) {
+      console.error('❌ Error saving image:', error)
+      alert('Error saving image. Please try again.')
+    } finally {
+      isUploading.value = false
+    }
   }
-}
-
-const cancelCrop = () => {
-  console.log('❌ Crop cancelled')
-  showCropModal.value = false
-  cropImage.value = null
+  
+  reader.onerror = (e) => {
+    console.error('❌ Error reading file:', e)
+    isUploading.value = false
+    alert('Error reading file. Please try again.')
+  }
+  
+  reader.readAsDataURL(file)
+  
+  // Reset input
+  event.target.value = ''
 }
 
 const removeProfileImage = () => {
@@ -405,12 +368,6 @@ const removeProfileImage = () => {
     console.log('🗑️ Profile image removed')
     alert('✅ Profile photo removed.')
   }
-}
-
-const handleImageError = (event) => {
-  console.log('❌ Image failed to load, removing from localStorage')
-  localStorage.removeItem('soutou_profile_image')
-  profileImage.value = null
 }
 
 // Update Profile
@@ -424,7 +381,6 @@ const updateProfile = () => {
   }
   localStorage.setItem('soutou_profile', JSON.stringify(profileData))
   
-  // Update auth store user
   if (authStore.currentUser) {
     authStore.currentUser.name = editForm.value.name
     authStore.saveToLocalStorage()
