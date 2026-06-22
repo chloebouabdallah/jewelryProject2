@@ -68,13 +68,9 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior(to, from, savedPosition) {
-    // Use browser's saved position (back/forward)
-    if (savedPosition) {
-      return savedPosition
-    }
-    // Don't scroll to top automatically - let App.vue handle it
-    return false
+  // ✅ Let browser handle scroll restoration
+  scrollBehavior() {
+    return { top: 0 }
   }
 })
 

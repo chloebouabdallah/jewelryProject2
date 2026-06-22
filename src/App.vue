@@ -6,7 +6,10 @@
         <component :is="Component" />
       </transition>
     </router-view>
-    <Footer />
+    <!-- ✅ Add a wrapper with opacity control -->
+    <div :class="{ 'opacity-0': !isContentReady, 'opacity-100 transition-opacity duration-700': isContentReady }">
+      <Footer />
+    </div>
     <ToastNotification />
     <AuthModal @login-success="handleLoginSuccess" />
     <Chatbot />
@@ -14,8 +17,7 @@
 </template>
 
 <script setup>
-import { onMounted, onBeforeUnmount, watch, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue'
 import Navbar from '@/components/Navbar.vue'
 import Footer from '@/components/Footer.vue'
 import ToastNotification from '@/components/ToastNotification.vue'
@@ -26,36 +28,9 @@ import { useCartStore } from '@/stores/cart'
 
 const authStore = useAuthStore()
 const cartStore = useCartStore()
-const route = useRoute()
-const router = useRouter()
 
-// Store scroll positions
-const scrollPositions = ref({})
-const isFirstLoad = ref(true)
-
-// Save scroll position for current route
-const saveScrollPosition = () => {
-  const path = route.fullPath
-  scrollPositions.value[path] = window.scrollY
-}
-
-// Restore scroll position for current route
-const restoreScrollPosition = () => {
-  const path = route.fullPath
-  const position = scrollPositions.value[path]
-  if (position !== undefined && !isFirstLoad.value) {
-    setTimeout(() => {
-      window.scrollTo({ top: position, behavior: 'smooth' })
-    }, 150)
-  }
-}
-
-// Save on scroll
-const handleScroll = () => {
-  if (!isFirstLoad.value) {
-    saveScrollPosition()
-  }
-}
+// ✅ Control when content is ready
+const isContentReady = ref(false)
 
 const handleLoginSuccess = () => {
   const added = cartStore.addPendingAfterLogin()
@@ -64,41 +39,14 @@ const handleLoginSuccess = () => {
   }
 }
 
-// Watch for route changes
-watch(() => route.fullPath, (newPath, oldPath) => {
-  // Save old position
-  if (oldPath) {
-    scrollPositions.value[oldPath] = window.scrollY
-  }
-  // Restore new position (if not first load)
-  if (!isFirstLoad.value) {
-    setTimeout(restoreScrollPosition, 100)
-  }
-})
-
-// Handle browser back/forward
-const handlePopState = () => {
-  setTimeout(restoreScrollPosition, 100)
-}
-
 onMounted(() => {
   authStore.checkAuth()
   
-  // ✅ Force scroll to top on first load
-  window.scrollTo(0, 0)
-  
-  // ✅ Mark first load as complete after 500ms
+  // ✅ Wait for the hero animation to complete before showing footer
+  // Hero animation in HomeView takes about 0.8-1.2 seconds
   setTimeout(() => {
-    isFirstLoad.value = false
-  }, 500)
-  
-  window.addEventListener('scroll', handleScroll, { passive: true })
-  window.addEventListener('popstate', handlePopState)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('scroll', handleScroll)
-  window.removeEventListener('popstate', handlePopState)
+    isContentReady.value = true
+  }, 1200)
 })
 </script>
 
