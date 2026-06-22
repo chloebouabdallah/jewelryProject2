@@ -68,38 +68,10 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior(to, from, savedPosition) {
-    // ✅ Browser back/forward
-    if (savedPosition) {
-      return savedPosition
-    }
-    
-    // ✅ Check sessionStorage for saved position
-    const key = `scroll_${to.fullPath}`
-    const saved = sessionStorage.getItem(key)
-    if (saved) {
-      try {
-        const position = JSON.parse(saved)
-        sessionStorage.removeItem(key)
-        return position
-      } catch (e) {}
-    }
-    
-    // ✅ Scroll to top for new pages
-    return { top: 0 }
+  // ✅ Empty scroll behavior - we'll handle it manually
+  scrollBehavior() {
+    return { top: 0, behavior: 'smooth' }
   }
-})
-
-// ✅ Save scroll position before navigation
-router.beforeEach((to, from, next) => {
-  if (from.path && from.path !== to.path) {
-    const key = `scroll_${from.fullPath}`
-    sessionStorage.setItem(key, JSON.stringify({
-      top: window.scrollY,
-      left: window.scrollX
-    }))
-  }
-  next()
 })
 
 export default router
