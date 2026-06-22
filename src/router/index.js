@@ -1,9 +1,6 @@
 // src/router/index.js
 import { createRouter, createWebHistory } from 'vue-router'
 
-// Store scroll positions
-const scrollStore = new Map()
-
 const routes = [
   {
     path: '/',
@@ -61,7 +58,6 @@ const routes = [
     name: 'Customize',
     component: () => import('@/views/CustomizationView.vue')
   },
-  // ✅ ADD THIS ROUTE
   {
     path: '/settings',
     name: 'Settings',
@@ -73,41 +69,35 @@ const router = createRouter({
   history: createWebHistory(),
   routes,
   scrollBehavior(to, from, savedPosition) {
-    // Handle browser back/forward
+    // ✅ Browser back/forward
     if (savedPosition) {
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          resolve(savedPosition)
-        }, 150)
-      })
+      return savedPosition
     }
     
-    // Check if we have a stored position for this route
-    const storedPosition = scrollStore.get(to.fullPath)
-    if (storedPosition) {
-      return storedPosition
+    // ✅ Check sessionStorage for saved position
+    const key = `scroll_${to.fullPath}`
+    const saved = sessionStorage.getItem(key)
+    if (saved) {
+      try {
+        const position = JSON.parse(saved)
+        sessionStorage.removeItem(key)
+        return position
+      } catch (e) {}
     }
     
-    // Check if we're coming back to a previous page
-    if (from.name && to.name !== from.name) {
-      // Save the current position before leaving
-      scrollStore.set(from.fullPath, {
-        top: window.pageYOffset,
-        left: window.pageXOffset
-      })
-    }
-    
+    // ✅ Scroll to top for new pages
     return { top: 0 }
   }
 })
 
-// Save scroll position before navigation
+// ✅ Save scroll position before navigation
 router.beforeEach((to, from, next) => {
   if (from.path && from.path !== to.path) {
-    scrollStore.set(from.fullPath, {
-      top: window.pageYOffset,
-      left: window.pageXOffset
-    })
+    const key = `scroll_${from.fullPath}`
+    sessionStorage.setItem(key, JSON.stringify({
+      top: window.scrollY,
+      left: window.scrollX
+    }))
   }
   next()
 })
