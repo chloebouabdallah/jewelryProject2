@@ -1,82 +1,83 @@
 // src/router/index.js
 import { createRouter, createWebHistory } from 'vue-router'
 
-// Import all views directly (not lazy-loaded)
-import HomeView from '@/views/HomeView.vue'
-import CollectionsView from '@/views/CollectionsView.vue'
-import CategoryView from '@/views/CategoryView.vue'
-import AboutView from '@/views/AboutView.vue'
-import ContactView from '@/views/ContactView.vue'
-import ReviewsView from '@/views/ReviewsView.vue'
-import CartView from '@/views/CartView.vue'
-import WishlistView from '@/views/WishlistView.vue'
-import ProductDetailView from '@/views/ProductDetailView.vue'
-import CheckoutView from '@/views/CheckoutView.vue'
-import CustomizationView from '@/views/CustomizationView.vue'
-import SettingsView from '@/views/SettingsView.vue'
-
-// Or use lazy loading with proper error handling
 const routes = [
   {
     path: '/',
     name: 'Home',
-    component: HomeView,
+    component: () => import('@/views/HomeView.vue'),
   },
   {
     path: '/collections',
     name: 'Collections',
-    component: CollectionsView,
+    component: () => import('@/views/CollectionsView.vue'),
   },
-  {
-    path: '/category/:category',
-    name: 'Category',
-    component: CategoryView,
-    props: true,
-  },
+{
+  path: '/necklaces',
+  name: 'Necklaces',
+  component: () => import('@/views/CategoryView.vue'),
+},
+{
+  path: '/rings',
+  name: 'Rings',
+  component: () => import('@/views/CategoryView.vue'),
+},
+{
+  path: '/earrings',
+  name: 'Earrings',
+  component: () => import('@/views/CategoryView.vue'),
+},
+{
+  path: '/bracelets',
+  name: 'Bracelets',
+  component: () => import('@/views/CategoryView.vue'),
+},
+  
   {
     path: '/about',
     name: 'About',
-    component: AboutView,
+    component: () => import('@/views/AboutView.vue'),
   },
   {
     path: '/contact',
     name: 'Contact',
-    component: ContactView,
+    component: () => import('@/views/ContactView.vue'),
   },
   {
     path: '/reviews',
     name: 'Reviews',
-    component: ReviewsView,
+    component: () => import('@/views/ReviewsView.vue'),
   },
   {
     path: '/cart',
     name: 'Cart',
-    component: CartView,
+    component: () => import('@/views/CartView.vue'),
   },
   {
     path: '/wishlist',
     name: 'Wishlist',
-    component: WishlistView,
+    component: () => import('@/views/WishlistView.vue'),
   },
   {
     path: '/product/:id',
     name: 'ProductDetail',
-    component: ProductDetailView,
+    component: () => import('@/views/ProductDetailView.vue'),
+    props: true,
   },
   {
     path: '/checkout',
     name: 'Checkout',
-    component: CheckoutView,
+    component: () => import('@/views/CheckoutView.vue'),
   },
   {
     path: '/customize',
     name: 'Customize',
-    component: CustomizationView,
+    component: () => import('@/views/CustomizationView.vue'),
   },
   {
     path: '/settings',
     name: 'Settings',
-    component: SettingsView,
+    component: () => import('@/views/SettingsView.vue'),
   },
   // Catch-all route for 404
   {
