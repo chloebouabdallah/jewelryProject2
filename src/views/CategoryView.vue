@@ -130,7 +130,9 @@
                 </div>
                 <div class="p-2 md:p-3">
                   <h3 class="font-playfair text-xs sm:text-sm md:text-base font-semibold text-stone-800 leading-tight">{{ product.name }}</h3>
-                  <p class="text-stone-500 text-[9px] sm:text-xs mt-0.5">{{ product.metalType || 'N/A' }}</p>
+                  <p class="text-stone-500 text-[9px] sm:text-xs mt-0.5">
+                    {{ product.displayText || product.metalType || 'N/A' }}
+                 </p>
                   <div class="flex justify-between items-center mt-1.5 md:mt-2">
                     <span class="text-amber-700 font-bold text-xs sm:text-sm md:text-base">
                       ${{ product.price.toLocaleString() }}
@@ -222,33 +224,23 @@ const mappedCategories = computed(() => {
   return categoryStore.mapCategories(categoryStore.categories)
 })
 
-// ✅ ALL PRODUCTS from API (mapped)
+// ✅ FIXED: ALL PRODUCTS with safe array handling
 const allProducts = computed(() => {
-  return productStore.mapProducts(productStore.products)
+  // Ensure productStore.products is an array before mapping
+  const productList = productStore.products || []
+  return productStore.mapProducts(productList)
 })
 
-// ✅ FILTERED PRODUCTS - Only show products from the current category
+// ✅ FIXED: FILTERED PRODUCTS
 const filteredProducts = computed(() => {
   let products = allProducts.value
   
-  console.log('🔍 Filtering products, total:', products.length)
-  
-  // ✅ Filter by category from URL
+  // Filter by category from URL
   const categorySlug = route.params.category
   if (categorySlug && categorySlug !== 'all') {
-    // Find the category by slug
     const category = displayCategories.value.find(c => c.slug === categorySlug)
     if (category) {
-      console.log('🔍 Filtering by category:', category.name, 'ID:', category.id)
-      // Filter products by category ID
-      products = products.filter(p => {
-        const match = p.category_id === category.id
-        console.log(`  Product: ${p.name}, category_id: ${p.category_id}, match: ${match}`)
-        return match
-      })
-      console.log('✅ Filtered products count:', products.length)
-    } else {
-      console.warn('⚠️ Category not found:', categorySlug)
+      products = products.filter(p => p.category_id === category.id)
     }
   }
   
@@ -292,12 +284,14 @@ const activeFilterCount = computed(() => {
   return count
 })
 
-// ✅ Load all products once, then filter locally
+// ✅ FIXED: Load products with safe error handling
 async function loadProducts() {
   try {
     console.log('🔄 Loading all products...')
     await productStore.fetchProducts()
-    console.log('✅ Total products loaded:', productStore.products.value.length)
+    // ✅ Safe access with optional chaining and fallback
+    const productCount = productStore.products?.length || 0
+    console.log('✅ Total products loaded:', productCount)
   } catch (error) {
     console.error('❌ Failed to load products:', error)
   }
@@ -310,7 +304,6 @@ function onCategoryChange(category) {
 }
 
 function refetchProducts() {
-  // Just refresh the filter
   console.log('🔄 Refreshing filter...')
 }
 
@@ -375,8 +368,9 @@ function handleImageError(event) {
 // ✅ Watch for route changes
 watch(() => route.params.category, (newSlug) => {
   console.log('🔄 Route changed to:', newSlug)
-  // Update the filter
-  filters.value.category = newSlug || 'all'
+  if (newSlug) {
+    filters.value.category = newSlug
+  }
 }, { immediate: true })
 
 // ✅ Watch for categories to load
@@ -384,7 +378,6 @@ watch(mappedCategories, (newCategories) => {
   if (newCategories && newCategories.length > 0) {
     displayCategories.value = newCategories
     console.log('📂 Categories loaded:', displayCategories.value.length)
-    // Set the category filter from URL
     const slug = route.params.category
     if (slug) {
       filters.value.category = slug
@@ -394,7 +387,8 @@ watch(mappedCategories, (newCategories) => {
 
 // ✅ Watch for products to load
 watch(() => productStore.products, (newProducts) => {
-  if (newProducts && newProducts.length > 0) {
+  // ✅ Check if newProducts exists and is an array
+  if (newProducts && Array.isArray(newProducts) && newProducts.length > 0) {
     console.log('📦 Products loaded in store:', newProducts.length)
   }
 }, { immediate: true })

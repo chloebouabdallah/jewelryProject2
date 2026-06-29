@@ -12,27 +12,51 @@ const routes = [
     name: 'Collections',
     component: () => import('@/views/CollectionsView.vue'),
   },
-{
-  path: '/necklaces',
-  name: 'Necklaces',
-  component: () => import('@/views/CategoryView.vue'),
-},
-{
-  path: '/rings',
-  name: 'Rings',
-  component: () => import('@/views/CategoryView.vue'),
-},
-{
-  path: '/earrings',
-  name: 'Earrings',
-  component: () => import('@/views/CategoryView.vue'),
-},
-{
-  path: '/bracelets',
-  name: 'Bracelets',
-  component: () => import('@/views/CategoryView.vue'),
-},
-  
+  // ✅ CATEGORY ROUTE - Must come BEFORE any catch-all
+  {
+    path: '/category/:category',
+    name: 'Category',
+    component: () => import('@/views/CategoryView.vue'),
+    props: true,
+  },
+  // ✅ Short URL redirects to full slug
+  {
+    path: '/category/necklaces',
+    redirect: '/category/necklaces-pendants',
+  },
+  {
+    path: '/category/rings',
+    redirect: '/category/rings-bands',
+  },
+  {
+    path: '/category/earrings',
+    redirect: '/category/earrings-drops',
+  },
+  {
+    path: '/category/bracelets',
+    redirect: '/category/bracelets-bangles',
+  },
+  // Empty placeholder files
+  {
+    path: '/necklaces',
+    name: 'Necklaces',
+    component: () => import('@/views/NecklacesView.vue'),
+  },
+  {
+    path: '/rings',
+    name: 'Rings',
+    component: () => import('@/views/RingsView.vue'),
+  },
+  {
+    path: '/earrings',
+    name: 'Earrings',
+    component: () => import('@/views/EarringsView.vue'),
+  },
+  {
+    path: '/bracelets',
+    name: 'Bracelets',
+    component: () => import('@/views/BraceletsView.vue'),
+  },
   {
     path: '/about',
     name: 'About',
@@ -79,7 +103,7 @@ const routes = [
     name: 'Settings',
     component: () => import('@/views/SettingsView.vue'),
   },
-  // Catch-all route for 404
+  // ⚠️ CATCH-ALL - Must be LAST
   {
     path: '/:pathMatch(.*)*',
     redirect: '/',

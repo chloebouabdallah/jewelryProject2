@@ -41,13 +41,18 @@ export const useOsimartCategoriesStore = defineStore('osimartCategories', () => 
 
   function mapCategory(category) {
     if (!category) return null;
+    
+    // Use slugified_name from API
+    const slug = category.slugified_name || category.slug || '';
+    
     return {
       id: category.id || '',
       name: category.name || '',
-      slug: category.slug || '',
+      slug: slug,
       description: category.description || '',
       image: category.image?.path || category.image || '',
       is_active: category.is_active !== false,
+      order: category.order || 0,
     };
   }
 

@@ -97,7 +97,7 @@
                   </span>
                 </div>
                 
-                <!-- ✅ FIXED: Use @click with router.push -->
+                <!-- ✅ FIXED: Explore button -->
                 <div class="flex flex-wrap gap-3" :class="index % 2 === 0 ? 'justify-start' : 'justify-end'">
                   <button
                     @click="goToCategory(category)"
@@ -142,25 +142,10 @@ const mappedCategories = computed(() => {
   return categoryStore.mapCategories(categoryStore.categories)
 })
 
-
+// ✅ FIXED: Use dynamic category route
 function goToCategory(category) {
-  const routeMap = {
-    'Necklaces & Pendants': '/necklaces',
-    'Rings & Bands': '/rings',
-    'Earrings & Drops': '/earrings',
-    'Bracelets & Bangles': '/bracelets',
-  }
-
-  const route = routeMap[category.name]
-
-  console.log('Category name:', category.name)
-  console.log('Route:', route)
-
-  if (route) {
-    router.push(route)
-  } else {
-    console.error('No route found for category:', category)
-  }
+  console.log('🔄 Going to category:', category.name, 'Slug:', category.slug)
+  router.push(`/category/${category.slug}`)
 }
 
 function getCategoryImage(category) {
@@ -228,6 +213,7 @@ watch(mappedCategories, (newCategories) => {
   if (newCategories && newCategories.length > 0) {
     displayCategories.value = newCategories
     console.log('📂 Categories loaded:', displayCategories.value.length)
+    console.log('📂 Category slugs:', displayCategories.value.map(c => ({ name: c.name, slug: c.slug })))
   }
 }, { immediate: true })
 
@@ -235,13 +221,6 @@ onMounted(async () => {
   try {
     await categoryStore.fetchCategories()
     await productStore.fetchProducts()
-
-    console.log('RAW PRODUCTS:', productStore.products)
-    console.log('MAPPED PRODUCTS:', productStore.mapProducts(productStore.products))
-
-    const categorySlug = route.path.replace('/', '')
-    filters.value.category = categorySlug
-
   } catch (error) {
     console.error('❌ Failed to load data:', error)
   }
