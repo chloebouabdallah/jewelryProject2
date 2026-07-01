@@ -15,7 +15,7 @@
       </div>
       
       <!-- Loading -->
-      <div v-if="productStore.isLoading" class="text-center py-20">
+      <div v-if="isLoading" class="text-center py-20">
         <i class="fas fa-spinner fa-spin text-4xl text-amber-600"></i>
         <p class="text-stone-500 mt-4">Loading product...</p>
       </div>
@@ -43,7 +43,8 @@
               </div>
             </div>
             
-            <div class="flex gap-2 md:gap-4 mt-3 md:mt-4">
+            <!-- Thumbnails -->
+            <div v-if="product.images && product.images.length > 0" class="flex gap-2 md:gap-4 mt-3 md:mt-4">
               <div 
                 v-for="(thumb, index) in product.images" 
                 :key="index"
@@ -59,7 +60,8 @@
         
         <!-- RIGHT: Info -->
         <div class="lg:w-1/2 fade-on-scroll fade-right">
-          <div class="flex flex-wrap gap-1.5 md:gap-2 mb-3 md:mb-4">
+          <!-- Tags -->
+          <div v-if="product.tags && product.tags.length" class="flex flex-wrap gap-1.5 md:gap-2 mb-3 md:mb-4">
             <span v-for="tag in product.tags" :key="tag" class="bg-amber-100 text-amber-800 px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-semibold">
               {{ tag }}
             </span>
@@ -68,6 +70,11 @@
           <h1 class="font-playfair text-2xl md:text-4xl lg:text-5xl font-light text-stone-800 mb-2">
             {{ product.name }}
           </h1>
+          
+          <div class="text-sm text-stone-500 mb-3">
+            {{ product.category }}
+            <span v-if="product.displayText" class="ml-2 text-amber-600">· {{ product.displayText }}</span>
+          </div>
           
           <div class="flex items-center gap-2 md:gap-3 mb-3 md:mb-4">
             <div class="flex gap-0.5 md:gap-1 text-amber-500 text-sm md:text-base">
@@ -87,17 +94,16 @@
                 ${{ product.oldPrice.toLocaleString() }}
               </span>
             </div>
-            <div v-if="product.goldWeight > 0 || product.silverWeight > 0" class="text-xs text-stone-500 mt-1.5">
-              <span v-if="product.goldWeight > 0">Gold: {{ product.goldWeight }}g</span>
-              <span v-if="product.silverWeight > 0" class="ml-3">Silver: {{ product.silverWeight }}g</span>
-            </div>
           </div>
           
-          <p class="text-stone-600 text-sm md:text-base leading-relaxed mb-4 md:mb-6">{{ product.description }}</p>
+          <p class="text-stone-600 text-sm md:text-base leading-relaxed mb-4 md:mb-6">
+            {{ product.description || 'Beautiful piece crafted with precision and care.' }}
+          </p>
           
+          <!-- Features -->
           <div v-if="product.features && product.features.length" class="grid grid-cols-2 gap-3 md:gap-4 mb-4 md:mb-6 p-3 md:p-4 bg-amber-50/50 rounded-xl md:rounded-2xl">
             <div v-for="feature in product.features" :key="feature.label" class="flex items-center gap-2 md:gap-3">
-              <i :class="feature.icon" class="text-amber-600 text-base md:text-xl"></i>
+              <i :class="feature.icon || 'fas fa-gem'" class="text-amber-600 text-base md:text-xl"></i>
               <div>
                 <p class="text-[10px] md:text-xs text-stone-500">{{ feature.label }}</p>
                 <p class="font-semibold text-stone-800 text-xs md:text-sm">{{ feature.value }}</p>
@@ -181,6 +187,15 @@
         </div>
       </section>
       
+      <!-- ✅ REVIEW SECTION - Using original reviews store -->
+      <div class="fade-on-scroll fade-up">
+        <ReviewSection 
+          :productId="product.id" 
+          :productName="product.name" 
+          :productImage="product.image" 
+        />
+      </div>
+      
     </div>
   </main>
 </template>
@@ -193,6 +208,7 @@ import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import { useWishlistStore } from '@/stores/wishlist'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
+import ReviewSection from '@/components/ReviewSection.vue'
 
 const route = useRoute()
 const productStore = useOsimartProductsStore()
@@ -202,16 +218,26 @@ const wishlistStore = useWishlistStore()
 
 useScrollAnimation()
 
+// ============================================
+// STATE
+// ============================================
 const quantity = ref(1)
 const currentImage = ref('')
 const product = ref(null)
 const relatedProducts = ref([])
+const isLoading = ref(false)
 
+// ============================================
+// COMPUTED
+// ============================================
 const isInWishlist = computed(() => {
   if (!product.value) return false
   return wishlistStore.isInWishlist(product.value.id)
 })
 
+// ============================================
+// METHODS
+// ============================================
 function incrementQuantity() {
   if (quantity.value < (product.value?.stock || 10)) quantity.value++
 }
@@ -233,6 +259,7 @@ function addToCart() {
         silverWeight: product.value.silverWeight || 0,
         metalType: product.value.metalType || 'none',
         originalPrice: product.value.originalPrice || product.value.price,
+        displayText: product.value.displayText || '',
       },
       authStore.isAuthenticated,
       authStore.openAuthModal
@@ -253,41 +280,91 @@ function toggleWishlist() {
   }
 }
 
-async function loadProduct(slug) {
+async function loadProduct(id) {
   try {
-    productStore.isLoading.value = true
-    const data = await productStore.fetchProduct(slug)
-    product.value = productStore.mapProduct(data)
+    isLoading.value = true
+    product.value = null
     
-    if (product.value && product.value.images && product.value.images.length > 0) {
-      currentImage.value = product.value.images[0]
+    console.log('🔍 Loading product with ID/slug:', id)
+    
+    let productData = null
+    
+    if (productStore.products && productStore.products.length > 0) {
+      productData = productStore.products.find(p => 
+        p.slugified_name === id || 
+        p.slug === id || 
+        p.id === id
+      )
     }
     
-    if (product.value) {
-      await productStore.fetchProducts({ category: product.value.category_id })
-      const allProducts = productStore.mapProducts(productStore.products)
-      relatedProducts.value = allProducts
-        .filter(p => p.id !== product.value.id)
-        .slice(0, 4)
+    if (!productData) {
+      console.log('🔄 Product not found locally, fetching all products...')
+      await productStore.fetchProducts()
+      productData = productStore.products.find(p => 
+        p.slugified_name === id || 
+        p.slug === id || 
+        p.id === id
+      )
+    }
+    
+    if (!productData) {
+      console.log('🔄 Product not found by slug, trying direct API call...')
+      try {
+        productData = await productStore.fetchProduct(id)
+      } catch (e) {
+        console.warn('⚠️ Direct fetch failed, trying to find by slug in all products...')
+        await productStore.fetchProducts()
+        productData = productStore.products.find(p => 
+          p.slugified_name === id || 
+          p.slug === id
+        )
+      }
+    }
+    
+    if (productData) {
+      product.value = productStore.mapProduct(productData)
+      
+      if (product.value && product.value.image) {
+        currentImage.value = product.value.image
+      }
+      
+      if (product.value.category_id) {
+        await productStore.fetchProducts({ category: product.value.category_id })
+        const allProducts = productStore.mapProducts(productStore.products)
+        relatedProducts.value = allProducts
+          .filter(p => p.id !== product.value.id)
+          .slice(0, 4)
+      }
+      
+      console.log('✅ Product loaded:', product.value.name)
+    } else {
+      console.warn('⚠️ Product not found:', id)
+      product.value = null
     }
   } catch (error) {
-    console.error('Failed to load product:', error)
+    console.error('❌ Failed to load product:', error)
     product.value = null
   } finally {
-    productStore.isLoading.value = false
+    isLoading.value = false
   }
 }
 
-watch(() => route.params.id, (newSlug) => {
-  if (newSlug) {
-    loadProduct(newSlug)
+// ============================================
+// WATCHERS
+// ============================================
+watch(() => route.params.id, (newId) => {
+  if (newId) {
+    loadProduct(newId)
   }
 }, { immediate: true })
 
+// ============================================
+// LIFECYCLE
+// ============================================
 onMounted(() => {
-  const slug = route.params.id
-  if (slug) {
-    loadProduct(slug)
+  const id = route.params.id
+  if (id) {
+    loadProduct(id)
   }
 })
 </script>

@@ -32,18 +32,15 @@ osimartApi.interceptors.request.use((config) => {
 // MEDIA API - For images and banners
 // ============================================
 export const mediaAPI = {
-  // Get full image URL
   getImageUrl: (imageData) => {
     if (!imageData) {
       return '/placeholder-banner.jpg';
     }
 
-    // If it's already a full URL, return it
     if (typeof imageData === 'string' && imageData.startsWith('http')) {
       return imageData;
     }
 
-    // Get the image path
     let imagePath = '';
     if (typeof imageData === 'string') {
       imagePath = imageData;
@@ -55,12 +52,10 @@ export const mediaAPI = {
       return '/placeholder-banner.jpg';
     }
 
-    // Remove leading slash if present
     const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
     return `https://api.osimart.com/${cleanPath}`;
   },
   
-  // Banner endpoints
   getBanners: () => osimartApi.get('/banners/'),
   getBanner: (id) => osimartApi.get(`/banners/${id}/`),
 };
@@ -69,12 +64,7 @@ export const mediaAPI = {
 // PRODUCTS API
 // ============================================
 export const productAPI = {
-  // ✅ Get all products - can filter by category
-  // Usage: productAPI.getProducts({ category: 1 }) 
-  //        productAPI.getProducts({ category_slug: 'necklaces' })
   getProducts: (params = {}) => osimartApi.get('/products/', { params }),
-  
-  // Get single product by ID
   getProduct: (id) => osimartApi.get(`/products/${id}/`),
 };
 
@@ -82,15 +72,23 @@ export const productAPI = {
 // CATEGORIES API
 // ============================================
 export const categoryAPI = {
-  // Get all categories
   getCategories: () => osimartApi.get('/categories/'),
-  
-  // Get single category by ID
   getCategory: (id) => osimartApi.get(`/categories/${id}/`),
 };
 
 // ============================================
-// CART API (for future use)
+// ✅ VARIANT TYPES API - NEW
+// ============================================
+export const variantAPI = {
+  // Get all variant types - returns array directly
+  getVariants: () => osimartApi.get('/variant-types/'),
+  
+  // Get single variant type by ID
+  getVariant: (id) => osimartApi.get(`/variant-types/${id}/`),
+};
+
+// ============================================
+// CART API
 // ============================================
 export const cartAPI = {
   getCart: () => osimartApi.get('/cart/'),
@@ -101,7 +99,7 @@ export const cartAPI = {
 };
 
 // ============================================
-// ORDERS API (for future use)
+// ORDERS API
 // ============================================
 export const orderAPI = {
   getOrders: () => osimartApi.get('/orders/'),
@@ -110,7 +108,7 @@ export const orderAPI = {
 };
 
 // ============================================
-// AUTH API (if Osimart handles auth)
+// AUTH API
 // ============================================
 export const authAPI = {
   login: (data) => osimartApi.post('/auth/login/', data),
