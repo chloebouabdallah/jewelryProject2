@@ -12,14 +12,13 @@ const routes = [
     name: 'Collections',
     component: () => import('@/views/CollectionsView.vue'),
   },
-  // ✅ CATEGORY ROUTE - Must come BEFORE any catch-all
   {
     path: '/category/:category',
     name: 'Category',
     component: () => import('@/views/CategoryView.vue'),
     props: true,
   },
-  // ✅ Short URL redirects to full slug
+  // Short URL redirects
   {
     path: '/category/necklaces',
     redirect: '/category/necklaces-pendants',
@@ -36,7 +35,6 @@ const routes = [
     path: '/category/bracelets',
     redirect: '/category/bracelets-bangles',
   },
-  // Empty placeholder files
   {
     path: '/necklaces',
     name: 'Necklaces',
@@ -103,7 +101,6 @@ const routes = [
     name: 'Settings',
     component: () => import('@/views/SettingsView.vue'),
   },
-  // ⚠️ CATCH-ALL - Must be LAST
   {
     path: '/:pathMatch(.*)*',
     redirect: '/',
@@ -114,11 +111,21 @@ const router = createRouter({
   history: createWebHistory(),
   routes,
   scrollBehavior(to, from, savedPosition) {
-    if (savedPosition) {
-      return savedPosition
+    // ✅ Always scroll to top on route change
+    return { 
+      top: 0, 
+      behavior: 'smooth',
+      // ✅ Force immediate scroll
+      el: 'body'
     }
-    return { top: 0 }
   },
+})
+
+// ✅ Additional: Force scroll to top on every navigation
+router.beforeEach((to, from, next) => {
+  // Scroll to top before navigation
+  window.scrollTo(0, 0)
+  next()
 })
 
 export default router
