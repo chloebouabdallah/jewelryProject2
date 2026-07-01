@@ -1,3 +1,4 @@
+<!-- src/views/CartView.vue -->
 <template>
   <main class="pt-32 pb-20 px-5">
     <div class="max-w-7xl mx-auto">
@@ -8,13 +9,7 @@
         <div class="w-20 h-0.5 bg-amber-500 mx-auto rounded-full"></div>
         <p v-if="authStore.isAuthenticated && cartStore.items.length > 0" class="text-stone-500 text-sm mt-2">
           <i class="fas fa-chart-line text-amber-500 mr-1"></i>
-          Prices updated with live gold & silver rates
-          <span v-if="goldPriceLoaded" class="text-green-600 text-xs ml-1">
-            ● Live
-          </span>
-          <span v-else class="text-amber-500 text-xs ml-1">
-            <i class="fas fa-spinner fa-spin"></i> Loading...
-          </span>
+          {{ cartStore.items.length }} items in your cart
         </p>
       </div>
       
@@ -48,79 +43,52 @@
               </div>
               
               <div v-else class="divide-y divide-amber-100">
-                <!-- Regular Items (with image and quantity controls) -->
-                <div v-for="item in regularItems" :key="item.id" class="p-5 flex gap-4 items-center">
-                  <router-link :to="`/product/${item.id}`" class="block">
+                <div v-for="item in cartStore.items" :key="item.id" class="p-5 flex gap-4 items-center">
+                  <!-- ✅ Product Image - Clickable -->
+                  <router-link :to="getProductLink(item)" class="block flex-shrink-0">
                     <img :src="item.image" :alt="item.name" class="w-24 h-24 object-cover rounded-xl hover:opacity-80 transition">
                   </router-link>
-                  <div class="flex-1">
-                    <router-link :to="`/product/${item.id}`" class="hover:text-amber-600 transition">
-                      <h3 class="font-semibold text-stone-800 hover:text-amber-600">{{ item.name }}</h3>
+                  
+                  <div class="flex-1 min-w-0">
+                    <!-- ✅ Product Name - Clickable -->
+                    <router-link :to="getProductLink(item)" class="hover:text-amber-600 transition">
+                      <h3 class="font-semibold text-stone-800 hover:text-amber-600 truncate">{{ item.name }}</h3>
                     </router-link>
+                    
+                    <!-- Display text (variants info) -->
+                    <p v-if="item.displayText" class="text-xs text-stone-500 mt-0.5">{{ item.displayText }}</p>
+                    
                     <!-- Metal info -->
                     <div v-if="item.goldWeight || item.silverWeight" class="flex flex-wrap gap-2 mt-1">
                       <span v-if="item.goldWeight && item.goldWeight > 0" class="text-[10px] bg-amber-50 text-stone-500 px-2 py-0.5 rounded-full border border-amber-100">
-                        Gold: {{ item.goldWeight }}g @ ${{ getGoldPrice().toFixed(2) }}/g
+                        Gold: {{ item.goldWeight }}g
                       </span>
                       <span v-if="item.silverWeight && item.silverWeight > 0" class="text-[10px] bg-stone-50 text-stone-500 px-2 py-0.5 rounded-full border border-stone-200">
-                        Silver: {{ item.silverWeight }}g @ ${{ getSilverPrice().toFixed(2) }}/g
+                        Silver: {{ item.silverWeight }}g
                       </span>
                     </div>
-                    <!-- Dynamic Price - use item.price directly (already dynamic from product detail) -->
+                    
+                    <!-- Custom item indicator -->
+                    <span v-if="item.isCustom" class="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">Custom</span>
+                    
+                    <!-- Price -->
                     <div class="flex items-baseline gap-2 mt-1">
-                      <p class="text-amber-700 font-bold text-lg">${{ getItemDisplayPrice(item).toLocaleString() }}</p>
-                      <span v-if="item.originalPrice && getItemDisplayPrice(item) !== item.originalPrice" class="text-[10px] text-green-600">
-                        <i class="fas fa-arrow-up text-[8px]"></i> updated
-                      </span>
+                      <p class="text-amber-700 font-bold text-lg">${{ (item.price || 0).toLocaleString() }}</p>
                     </div>
-                    <!-- Show original price if changed -->
-                    <p v-if="item.originalPrice && getItemDisplayPrice(item) !== item.originalPrice" class="text-[10px] text-stone-400 line-through">
-                      ${{ item.originalPrice.toLocaleString() }}
-                    </p>
+                    
+                    <!-- Quantity Controls -->
                     <div class="flex items-center gap-3 mt-2">
-                      <button @click="cartStore.updateQuantity(item.id, -1)" class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center hover:bg-amber-600 hover:text-white transition">-</button>
+                      <button @click="updateQuantity(item.id, -1)" class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center hover:bg-amber-600 hover:text-white transition">-</button>
                       <span class="w-8 text-center text-stone-700">{{ item.quantity }}</span>
-                      <button @click="cartStore.updateQuantity(item.id, 1)" class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center hover:bg-amber-600 hover:text-white transition">+</button>
-                      <button @click="cartStore.removeItem(item.id)" class="ml-4 text-stone-400 hover:text-red-500 transition text-sm">
+                      <button @click="updateQuantity(item.id, 1)" class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center hover:bg-amber-600 hover:text-white transition">+</button>
+                      <button @click="removeItem(item.id)" class="ml-4 text-stone-400 hover:text-red-500 transition text-sm">
                         <i class="fas fa-trash-alt"></i> Remove
                       </button>
                     </div>
                   </div>
-                  <div class="text-right">
-                    <span class="font-bold text-stone-800">${{ (getItemDisplayPrice(item) * item.quantity).toLocaleString() }}</span>
-                    <div v-if="item.goldWeight || item.silverWeight" class="text-[9px] text-stone-400 mt-0.5">
-                      Live metal price
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Custom Items (no image, no quantity, just description) -->
-                <div v-for="item in customItems" :key="item.id" class="p-5 flex gap-4 items-start bg-amber-50/30">
-                  <div class="w-24 h-24 flex-shrink-0 flex items-center justify-center bg-amber-100 rounded-xl">
-                    <i class="fas fa-pen-fancy text-3xl text-amber-600"></i>
-                  </div>
-                  <div class="flex-1">
-                    <div class="flex items-center gap-2">
-                      <h3 class="font-semibold text-stone-800">{{ item.name }}</h3>
-                      <span class="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">Custom</span>
-                    </div>
-                    <p class="text-sm text-stone-600 mt-1 leading-relaxed">{{ item.description || 'Custom designed piece' }}</p>
-                    <div class="flex flex-wrap gap-1 mt-2">
-                      <span v-if="item.metal && item.metal !== 'Not specified'" class="text-xs bg-amber-50 text-stone-600 px-2 py-0.5 rounded-full border border-amber-100">{{ item.metal }}</span>
-                      <span v-if="item.setting && item.setting !== 'Not specified'" class="text-xs bg-amber-50 text-stone-600 px-2 py-0.5 rounded-full border border-amber-100">{{ item.setting }} setting</span>
-                      <span v-if="item.shape && item.shape !== 'Not specified'" class="text-xs bg-amber-50 text-stone-600 px-2 py-0.5 rounded-full border border-amber-100">{{ item.shape }} cut</span>
-                      <span v-if="item.carat && item.carat !== 'Not specified'" class="text-xs bg-amber-50 text-stone-600 px-2 py-0.5 rounded-full border border-amber-100">{{ item.carat }}</span>
-                      <span v-if="item.band && item.band !== 'Not specified'" class="text-xs bg-amber-50 text-stone-600 px-2 py-0.5 rounded-full border border-amber-100">{{ item.band }} band</span>
-                      <span v-if="item.accent && item.accent !== 'Not specified' && item.accent !== 'None'" class="text-xs bg-amber-50 text-stone-600 px-2 py-0.5 rounded-full border border-amber-100">{{ item.accent }} accents</span>
-                    </div>
-                    <p class="text-amber-700 font-bold text-lg mt-2">${{ item.price.toLocaleString() }}</p>
-                    <button @click="cartStore.removeItem(item.id)" class="mt-2 text-stone-400 hover:text-red-500 transition text-sm">
-                      <i class="fas fa-trash-alt"></i> Remove
-                    </button>
-                  </div>
-                  <div class="text-right">
-                    <span class="font-bold text-stone-800">${{ item.price.toLocaleString() }}</span>
-                    <p class="text-xs text-stone-400 mt-1">Custom order</p>
+                  
+                  <div class="text-right flex-shrink-0">
+                    <span class="font-bold text-stone-800">${{ ((item.price || 0) * item.quantity).toLocaleString() }}</span>
                   </div>
                 </div>
               </div>
@@ -135,7 +103,7 @@
               <div class="space-y-3 border-b border-amber-100 pb-4">
                 <div class="flex justify-between text-stone-600">
                   <span>Subtotal</span>
-                  <span>${{ updatedSubtotal.toLocaleString() }}</span>
+                  <span>${{ cartStore.subtotal.toLocaleString() }}</span>
                 </div>
                 <div class="flex justify-between text-stone-600">
                   <span>Shipping</span>
@@ -143,27 +111,13 @@
                 </div>
                 <div class="flex justify-between text-stone-600">
                   <span>Tax (8%)</span>
-                  <span>${{ (updatedSubtotal * 0.08).toFixed(2) }}</span>
+                  <span>${{ cartStore.tax.toFixed(2) }}</span>
                 </div>
               </div>
               
               <div class="flex justify-between text-stone-800 font-bold text-lg pt-4">
                 <span>Total</span>
-                <span>${{ (updatedSubtotal * 1.08).toFixed(2) }}</span>
-              </div>
-              
-              <!-- Live Metal Price Indicator -->
-              <div v-if="hasMetalItems" class="mt-3 p-2 bg-amber-50 rounded-lg border border-amber-100">
-                <p class="text-[10px] text-stone-500 flex items-center gap-1">
-                  <i class="fas fa-chart-line text-amber-500"></i>
-                  Prices based on live metal rates
-                  <span v-if="goldPriceLoaded" class="text-green-600 text-[8px] ml-auto">● Live</span>
-                  <span v-else class="text-amber-500 text-[8px] ml-auto"><i class="fas fa-spinner fa-spin"></i></span>
-                </p>
-                <div class="flex gap-3 mt-1 text-[9px] text-stone-400">
-                  <span v-if="goldPrice">Gold: ${{ goldPrice.toFixed(2) }}/g</span>
-                  <span v-if="silverPrice">Silver: ${{ silverPrice.toFixed(2) }}/g</span>
-                </div>
+                <span>${{ cartStore.total.toFixed(2) }}</span>
               </div>
               
               <router-link 
@@ -186,121 +140,47 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { onMounted } from 'vue'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
-import { fetchMetalPrices } from '@/services/metalPrices'
 
 const cartStore = useCartStore()
 const authStore = useAuthStore()
 useScrollAnimation()
 
-const goldPrice = ref(85.50)
-const silverPrice = ref(0.85)
-const goldPriceLoaded = ref(false)
-const DEFAULT_GOLD_PRICE = 85.50
-const DEFAULT_SILVER_PRICE = 0.85
-
-// Fetch metal prices
-const loadMetalPrices = async () => {
-  try {
-    const prices = await fetchMetalPrices()
-    goldPrice.value = prices.gold
-    silverPrice.value = prices.silver
-    goldPriceLoaded.value = true
-    console.log(`✅ Cart - Gold: $${goldPrice.value}/g, Silver: $${silverPrice.value}/g`)
-  } catch (error) {
-    console.error('Error fetching metal prices:', error)
-    goldPrice.value = DEFAULT_GOLD_PRICE
-    silverPrice.value = DEFAULT_SILVER_PRICE
-    goldPriceLoaded.value = true
+// ============================================
+// ✅ Get product link from cart item
+// ============================================
+function getProductLink(item) {
+  // If we have a product slug, use it
+  if (item.product_slug) {
+    return `/product/${item.product_slug}`
   }
+  
+  // If we have a product ID, use it
+  if (item.product_id) {
+    return `/product/${item.product_id}`
+  }
+  
+  // If we have a variant ID, try to find the product
+  // For now, use the item id as fallback
+  return `/product/${item.id}`
 }
 
-// Separate regular items from custom items
-const regularItems = computed(() => {
-  return cartStore.items.filter(item => !item.isCustom)
-})
-
-const customItems = computed(() => {
-  return cartStore.items.filter(item => item.isCustom)
-})
-
-// Check if any items have metal weights
-const hasMetalItems = computed(() => {
-  return cartStore.items.some(item => 
-    (item.goldWeight && item.goldWeight > 0) || 
-    (item.silverWeight && item.silverWeight > 0)
-  )
-})
-
-// Get current gold price
-const getGoldPrice = () => {
-  return goldPrice.value || DEFAULT_GOLD_PRICE
+// ============================================
+// Cart Actions
+// ============================================
+const updateQuantity = (id, delta) => {
+  cartStore.updateQuantity(id, delta)
 }
 
-// Get current silver price
-const getSilverPrice = () => {
-  return silverPrice.value || DEFAULT_SILVER_PRICE
+const removeItem = (id) => {
+  cartStore.removeItem(id)
 }
-
-// Get display price for an item
-const getItemDisplayPrice = (item) => {
-  if (!item) return 0
-  
-  // For custom items, use stored price
-  if (item.isCustom) {
-    return item.price
-  }
-  
-  // If item already has a price from product detail, use it
-  if (item.price) {
-    return item.price
-  }
-  
-  // Fallback: calculate from metal weights
-  let price = item.originalPrice || 0
-  const hasGold = item.goldWeight && item.goldWeight > 0
-  const hasSilver = item.silverWeight && item.silverWeight > 0
-  
-  if (hasGold) {
-    const originalMetalCost = item.goldWeight * DEFAULT_GOLD_PRICE
-    const metalCost = item.goldWeight * goldPrice.value
-    const otherCosts = Math.max(0, price - originalMetalCost)
-    price = Math.round(metalCost + otherCosts)
-  }
-  
-  if (hasSilver) {
-    const originalMetalCost = item.silverWeight * DEFAULT_SILVER_PRICE
-    const metalCost = item.silverWeight * silverPrice.value
-    const otherCosts = Math.max(0, price - originalMetalCost)
-    price = Math.round(metalCost + otherCosts)
-  }
-  
-  if (hasGold && hasSilver) {
-    const originalGoldCost = item.goldWeight * DEFAULT_GOLD_PRICE
-    const originalSilverCost = item.silverWeight * DEFAULT_SILVER_PRICE
-    const goldCost = item.goldWeight * goldPrice.value
-    const silverCost = item.silverWeight * silverPrice.value
-    const otherCosts = Math.max(0, price - originalGoldCost - originalSilverCost)
-    price = Math.round(goldCost + silverCost + otherCosts)
-  }
-  
-  return price
-}
-
-// Calculate subtotal with dynamic prices
-const updatedSubtotal = computed(() => {
-  let total = 0
-  cartStore.items.forEach(item => {
-    const price = getItemDisplayPrice(item)
-    total += price * (item.quantity || 1)
-  })
-  return total
-})
 
 onMounted(() => {
-  loadMetalPrices()
+  // Refresh cart data
+  cartStore.fetchCart()
 })
 </script>

@@ -246,26 +246,34 @@ function decrementQuantity() {
   if (quantity.value > 1) quantity.value--
 }
 
-function addToCart() {
+async function addToCart() {
   if (product.value) {
-    cartStore.addToCart(
-      {
-        id: product.value.id,
-        name: product.value.name,
-        price: product.value.price,
-        image: product.value.image,
-        quantity: quantity.value,
-        goldWeight: product.value.goldWeight || 0,
-        silverWeight: product.value.silverWeight || 0,
-        metalType: product.value.metalType || 'none',
-        originalPrice: product.value.originalPrice || product.value.price,
-        displayText: product.value.displayText || '',
-      },
-      authStore.isAuthenticated,
-      authStore.openAuthModal
-    )
+    // Get the variant ID - use the first variant or the product ID
+    let variantId = product.value.id;
+    
+    // If product has variants, use the first one
+    if (product.value.variants && product.value.variants.length > 0) {
+      variantId = product.value.variants[0].id;
+    }
+    
+    const cartItem = {
+      variant_id: variantId,
+      id: product.value.id,
+      name: product.value.name,
+      price: product.value.price,
+      image: product.value.image,
+      quantity: quantity.value,
+      goldWeight: product.value.goldWeight || 0,
+      silverWeight: product.value.silverWeight || 0,
+      metalType: product.value.metalType || 'none',
+      originalPrice: product.value.originalPrice || product.value.price,
+      displayText: product.value.displayText || '',
+    };
+    
+    await cartStore.addToCart(cartItem, authStore.isAuthenticated, authStore.openAuthModal);
   }
 }
+
 
 function toggleWishlist() {
   if (product.value) {

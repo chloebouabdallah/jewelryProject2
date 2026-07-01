@@ -32,12 +32,17 @@ import Chatbot from '@/components/Chatbot.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
 
+
+
+
 const router = useRouter()
 const authStore = useAuthStore()
 const cartStore = useCartStore()
 
 const isFooterVisible = ref(false)
 const footerWrapper = ref(null)
+
+
 
 const handleLoginSuccess = () => {
   const added = cartStore.addPendingAfterLogin()

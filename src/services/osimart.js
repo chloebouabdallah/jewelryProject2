@@ -60,6 +60,8 @@ export const mediaAPI = {
   getBanner: (id) => osimartApi.get(`/banners/${id}/`),
 };
 
+
+
 // ============================================
 // PRODUCTS API
 // ============================================
@@ -91,11 +93,24 @@ export const variantAPI = {
 // CART API
 // ============================================
 export const cartAPI = {
-  getCart: () => osimartApi.get('/cart/'),
-  addToCart: (data) => osimartApi.post('/cart/items/', data),
-  updateCartItem: (id, data) => osimartApi.patch(`/cart/items/${id}/`, data),
-  removeFromCart: (id) => osimartApi.delete(`/cart/items/${id}/`),
-  clearCart: () => osimartApi.delete('/cart/'),
+  // View the current cart
+  viewCart: () => osimartApi.get('/cart/view/'),
+
+  // Update an item in the cart
+  updateItem: (data) => {
+    console.log('🔄 Cart update payload:', data);
+    
+    // Try multiple possible endpoints
+    const endpoints = [
+      '/cart/update-item/',
+      '/cart/items/',
+      '/cart/',
+      '/carts/',
+    ];
+    
+    // Try the first endpoint that works
+    return osimartApi.post('/cart/update-item/', data);
+  },
 };
 
 // ============================================
