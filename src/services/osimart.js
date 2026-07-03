@@ -15,6 +15,7 @@ export const osimartApi = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
 // ✅ Add store ID to all requests automatically
@@ -29,7 +30,7 @@ osimartApi.interceptors.request.use((config) => {
 });
 
 // ============================================
-// MEDIA API - For images and banners
+// MEDIA API
 // ============================================
 export const mediaAPI = {
   getImageUrl: (imageData) => {
@@ -60,8 +61,6 @@ export const mediaAPI = {
   getBanner: (id) => osimartApi.get(`/banners/${id}/`),
 };
 
-
-
 // ============================================
 // PRODUCTS API
 // ============================================
@@ -79,37 +78,56 @@ export const categoryAPI = {
 };
 
 // ============================================
-// ✅ VARIANT TYPES API - NEW
+// VARIANT TYPES API
 // ============================================
 export const variantAPI = {
-  // Get all variant types - returns array directly
   getVariants: () => osimartApi.get('/variant-types/'),
-  
-  // Get single variant type by ID
   getVariant: (id) => osimartApi.get(`/variant-types/${id}/`),
 };
 
 // ============================================
-// CART API
+// ✅ CART API - All methods properly defined
 // ============================================
 export const cartAPI = {
-  // View the current cart
-  viewCart: () => osimartApi.get('/cart/view/'),
+  // Get cart
+  viewCart: () => {
+    console.log('📦 Viewing cart...');
+    return osimartApi.get('/cart/view/');
+  },
 
-  // Update an item in the cart
+  // Add item to cart
+  addItem: (data) => {
+    console.log('🔄 Adding to cart:', data);
+    const payload = {
+      product_id: data.product_id || data.item_id,
+      quantity: data.quantity || 1,
+      name: data.name || 'Product',
+      price: data.price || 0,
+      image: data.image || '',
+    };
+    console.log('📤 Sending to /cart/add/:', payload);
+    return osimartApi.post('/cart/add/', payload);
+  },
+
+  // Update item in cart
   updateItem: (data) => {
-    console.log('🔄 Cart update payload:', data);
-    
-    // Try multiple possible endpoints
-    const endpoints = [
-      '/cart/update-item/',
-      '/cart/items/',
-      '/cart/',
-      '/carts/',
-    ];
-    
-    // Try the first endpoint that works
-    return osimartApi.post('/cart/update-item/', data);
+    console.log('🔄 Updating cart item:', data);
+    const payload = {
+      product_id: data.product_id || data.item_id,
+      quantity: data.quantity || 1,
+    };
+    console.log('📤 Sending to /cart/update/:', payload);
+    return osimartApi.post('/cart/update/', payload);
+  },
+
+  // Remove item from cart
+  removeItem: (data) => {
+    console.log('🔄 Removing from cart:', data);
+    const payload = {
+      product_id: data.product_id || data.item_id,
+    };
+    console.log('📤 Sending to /cart/remove/:', payload);
+    return osimartApi.post('/cart/remove/', payload);
   },
 };
 

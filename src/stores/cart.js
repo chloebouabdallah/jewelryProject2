@@ -1,7 +1,7 @@
 // src/stores/cart.js
 import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
-import { cartAPI } from '@/services/osimart';
+import { cartAPI, mediaAPI } from '@/services/osimart';
 
 export const useCartStore = defineStore('cart', () => {
   // ============================================
@@ -15,7 +15,7 @@ export const useCartStore = defineStore('cart', () => {
   const pendingProduct = ref(null);
   const authRequiredMessage = ref('');
   const currentUserEmail = ref(null);
-  const useApi = ref(true); // ✅ Try API first
+  const useApi = ref(false); // Disabled by default
 
   // ============================================
   // GETTERS
@@ -33,7 +33,7 @@ export const useCartStore = defineStore('cart', () => {
   const total = computed(() => subtotal.value + tax.value);
 
   // ============================================
-  // LOCAL STORAGE HELPERS (Fallback)
+  // LOCAL STORAGE HELPERS
   // ============================================
   function getStorageKey() {
     const userEmail = currentUserEmail.value;
@@ -66,140 +66,32 @@ export const useCartStore = defineStore('cart', () => {
   }
 
   // ============================================
-  // API ACTIONS
+  // HELPER: Extract product ID
   // ============================================
-
-  /**
-   * Fetch the current cart from Osimart API
-   */
-  async function fetchCart() {
-    if (!useApi.value) {
-      loadFromLocalStorage();
-      return items.value;
+  function extractProductId(product) {
+    if (!product) return null;
+    
+    console.log('🔍 Extracting ID from:', product.name || product.id);
+    
+    if (product.id) {
+      console.log('✅ Using product ID:', product.id);
+      return product.id;
     }
-
-    isLoading.value = true;
-    error.value = null;
-    try {
-      console.log('🔄 Fetching cart from Osimart API...');
-      const response = await cartAPI.viewCart();
-      console.log('✅ Cart API Response:', response.data);
-
-      // Transform API response
-      const cartData = response.data.cart || {};
-      const cartItems = Object.values(cartData);
-
-      if (cartItems.length > 0) {
-        items.value = cartItems.map((item) => ({
-          id: item.id || item.item_id || item.product_id,
-          product_id: item.product_id,
-          product_slug: item.product_slug || item.slug || '',
-          name: item.product_name || item.name || 'Product',
-          price: parseFloat(item.price) || 0,
-          image: item.product_image || item.image || '/placeholder.jpg',
-          quantity: item.quantity || 1,
-          goldWeight: item.gold_weight || 0,
-          silverWeight: item.silver_weight || 0,
-          metalType: item.metal_type || 'none',
-          originalPrice: parseFloat(item.original_price) || parseFloat(item.price) || 0,
-          displayText: item.display_text || '',
-          isCustom: item.is_custom || false,
-          description: item.description || '',
-          metal: item.metal || '',
-          setting: item.setting || '',
-          shape: item.shape || '',
-          carat: item.carat || '',
-          band: item.band || '',
-          accent: item.accent || '',
-          variant_id: item.variant_id || item.id,
-          selected_variants: item.selected_variants || [],
-        }));
-        totalPrice.value = response.data.total_price || subtotal.value;
-      } else {
-        // If API returns empty, fallback to localStorage
-        loadFromLocalStorage();
-      }
-
-      saveToLocalStorage();
-      return items.value;
-    } catch (err) {
-      console.error('❌ Failed to fetch cart from API:', err);
-      // Fallback to localStorage
-      loadFromLocalStorage();
-      return items.value;
-    } finally {
-      isLoading.value = false;
+    
+    if (product.product_id) {
+      console.log('✅ Using product_id:', product.product_id);
+      return product.product_id;
     }
+    
+    console.error('❌ Could not extract valid ID from product');
+    return null;
   }
 
-  /**
-   * Update an item in the cart (add, update, or delete)
-   */
-  async function updateCartItem(itemId, action, quantity = 1, extraData = {}) {
-    isLoading.value = true;
-    error.value = null;
-
-    // ✅ Optimistic update - update local cart first
-    updateLocalCart(itemId, action, quantity, extraData);
-    saveToLocalStorage();
-
-    // ✅ Then try API
-    if (useApi.value) {
-      try {
-        const payload = {
-          item_id: itemId,
-          action: action,
-          quantity: quantity,
-        };
-
-        // Add custom fields if provided
-        if (extraData.is_custom) {
-          payload.is_custom = extraData.is_custom;
-          payload.description = extraData.description || '';
-          payload.metal = extraData.metal || '';
-          payload.setting = extraData.setting || '';
-          payload.shape = extraData.shape || '';
-          payload.carat = extraData.carat || '';
-          payload.band = extraData.band || '';
-          payload.accent = extraData.accent || '';
-          payload.price = extraData.price || 0;
-        }
-
-        console.log(`🔄 Sending to Osimart API:`, payload);
-
-        const response = await cartAPI.updateItem(payload);
-        console.log('✅ Cart update response:', response.data);
-
-        // ✅ Refetch to sync with server
-        await fetchCart();
-
-        return { success: true, message: 'Cart updated successfully' };
-      } catch (err) {
-        console.error('❌ Failed to update cart via API:', err);
-        
-        // Check if it's a 404 - endpoint might not exist
-        if (err.response?.status === 404) {
-          console.warn('⚠️ Cart API endpoint not found. Using localStorage only.');
-          useApi.value = false; // Disable API for future requests
-          // Keep local changes since we already updated
-          return { success: true, message: 'Cart updated locally (API unavailable)' };
-        }
-        
-        return { success: true, message: 'Cart updated locally (API error)' };
-      } finally {
-        isLoading.value = false;
-      }
-    } else {
-      isLoading.value = false;
-      return { success: true, message: 'Cart updated locally' };
-    }
-  }
-
-  /**
-   * Update local cart
-   */
+  // ============================================
+  // UPDATE LOCAL CART
+  // ============================================
   function updateLocalCart(itemId, action, quantity, extraData = {}) {
-    if (action === 'delete') {
+    if (action === 'delete' || action === 'remove') {
       items.value = items.value.filter((item) => item.id !== itemId);
     } else if (action === 'add' || action === 'update') {
       const existingItem = items.value.find((item) => item.id === itemId);
@@ -245,7 +137,7 @@ export const useCartStore = defineStore('cart', () => {
           carat: extraData.carat || '',
           band: extraData.band || '',
           accent: extraData.accent || '',
-          variant_id: itemId,
+          variant_id: extraData.variant_id || itemId,
           selected_variants: [],
         });
       }
@@ -254,9 +146,75 @@ export const useCartStore = defineStore('cart', () => {
     saveToLocalStorage();
   }
 
-  /**
-   * Add a product to the cart
-   */
+  // ============================================
+  // FETCH CART
+  // ============================================
+  async function fetchCart() {
+    isLoading.value = true;
+    error.value = null;
+
+    try {
+      console.log('📦 Fetching cart from API...');
+      
+      if (useApi.value) {
+        try {
+          const response = await cartAPI.viewCart();
+          console.log('✅ Cart API response:', response.data);
+          
+          if (response.data && response.data.items) {
+            items.value = response.data.items.map(item => ({
+              id: item.id || item.product_id,
+              product_id: item.product_id,
+              product_slug: item.slug || '',
+              quantity: item.quantity || 1,
+              name: item.name || 'Product',
+              price: item.price || 0,
+              image: item.image ? mediaAPI.getImageUrl(item.image) : '/placeholder.jpg',
+              goldWeight: item.goldWeight || 0,
+              silverWeight: item.silverWeight || 0,
+              metalType: item.metalType || 'none',
+              originalPrice: item.original_price || item.price || 0,
+              displayText: item.display_text || '',
+              isCustom: item.is_custom || false,
+              description: item.description || '',
+              metal: item.metal || '',
+              setting: item.setting || '',
+              shape: item.shape || '',
+              carat: item.carat || '',
+              band: item.band || '',
+              accent: item.accent || '',
+              variant_id: item.variant_id || item.id,
+            }));
+            
+            totalPrice.value = subtotal.value;
+            saveToLocalStorage();
+            return items.value;
+          }
+        } catch (err) {
+          console.warn('⚠️ Failed to fetch cart from API:', err.message);
+          if (err.response?.status === 404) {
+            useApi.value = false;
+          }
+        }
+      }
+      
+      console.log('📦 Loading cart from localStorage...');
+      loadFromLocalStorage();
+      console.log('✅ Cart loaded:', items.value.length, 'items');
+      return items.value;
+      
+    } catch (err) {
+      console.error('❌ Failed to load cart:', err.message);
+      error.value = 'Failed to load cart';
+      return items.value;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // ============================================
+  // ADD TO CART
+  // ============================================
   async function addToCart(product, isAuthenticated, openAuthModal) {
     console.log(`🛒 ADD TO CART: ${product.name}, authenticated: ${isAuthenticated}`);
 
@@ -269,7 +227,14 @@ export const useCartStore = defineStore('cart', () => {
       return { success: false, message: 'Please login to add items to cart' };
     }
 
-    const variantId = product.variant_id || product.id;
+    const itemId = extractProductId(product);
+    
+    if (!itemId) {
+      console.error('❌ Could not extract valid ID from product');
+      return { success: false, message: 'Could not add product to cart (invalid ID)' };
+    }
+
+    console.log(`✅ Using item ID: ${itemId}`);
 
     const extraData = {
       name: product.name,
@@ -282,6 +247,7 @@ export const useCartStore = defineStore('cart', () => {
       metalType: product.metalType || 'none',
       originalPrice: product.originalPrice || product.price,
       displayText: product.displayText || '',
+      variant_id: itemId,
     };
 
     if (product.isCustom) {
@@ -296,26 +262,41 @@ export const useCartStore = defineStore('cart', () => {
       extraData.price = product.price || 0;
     }
 
-    const result = await updateCartItem(
-      variantId,
-      'add',
-      product.quantity || 1,
-      extraData
-    );
+    // Update local cart
+    updateLocalCart(itemId, 'add', product.quantity || 1, extraData);
+    saveToLocalStorage();
 
-    if (result.success) {
-      lastAddedMessage.value = `${product.name} added to cart!`;
-      setTimeout(() => {
-        lastAddedMessage.value = '';
-      }, 2000);
+    // Try API if enabled
+    if (useApi.value) {
+      try {
+        await cartAPI.addItem({
+          product_id: itemId,
+          quantity: product.quantity || 1,
+          name: product.name,
+          price: product.price,
+          image: product.image,
+        });
+        console.log('✅ Item added via API');
+        await fetchCart();
+      } catch (err) {
+        console.warn('⚠️ API add failed, using localStorage:', err.message);
+        if (err.response?.status === 404) {
+          useApi.value = false;
+        }
+      }
     }
 
-    return result;
+    lastAddedMessage.value = `${product.name} added to cart!`;
+    setTimeout(() => {
+      lastAddedMessage.value = '';
+    }, 2000);
+
+    return { success: true, message: 'Item added to cart' };
   }
 
-  /**
-   * Update quantity of an item in the cart
-   */
+  // ============================================
+  // UPDATE QUANTITY
+  // ============================================
   async function updateQuantity(productId, delta) {
     const item = items.value.find((i) => i.id === productId);
     if (!item) {
@@ -328,33 +309,93 @@ export const useCartStore = defineStore('cart', () => {
       return removeItem(productId);
     }
 
-    return updateCartItem(productId, 'update', newQuantity);
-  }
-
-  /**
-   * Remove an item from the cart
-   */
-  async function removeItem(productId) {
-    return updateCartItem(productId, 'delete');
-  }
-
-  /**
-   * Clear the entire cart
-   */
-  async function clearCart() {
-    const itemIds = items.value.map((item) => item.id);
-    for (const id of itemIds) {
-      await updateCartItem(id, 'delete');
-    }
-    items.value = [];
-    totalPrice.value = 0;
+    // Update local cart
+    updateLocalCart(productId, 'update', newQuantity);
     saveToLocalStorage();
-    return { success: true, message: 'Cart cleared' };
+
+    // Try API if enabled
+    if (useApi.value) {
+      try {
+        await cartAPI.updateItem({
+          product_id: productId,
+          quantity: newQuantity,
+        });
+        console.log('✅ Quantity updated via API');
+        await fetchCart();
+      } catch (err) {
+        console.warn('⚠️ API update failed, using localStorage:', err.message);
+        if (err.response?.status === 404) {
+          useApi.value = false;
+        }
+      }
+    }
+
+    return { success: true };
   }
 
-  /**
-   * Get product link from cart item
-   */
+  // ============================================
+  // REMOVE ITEM
+  // ============================================
+  async function removeItem(productId) {
+    // Update local cart
+    updateLocalCart(productId, 'delete');
+    saveToLocalStorage();
+
+    // Try API if enabled
+    if (useApi.value) {
+      try {
+        await cartAPI.removeItem({
+          product_id: productId,
+        });
+        console.log('✅ Item removed via API');
+        await fetchCart();
+      } catch (err) {
+        console.warn('⚠️ API remove failed, using localStorage:', err.message);
+        if (err.response?.status === 404) {
+          useApi.value = false;
+        }
+      }
+    }
+
+    return { success: true };
+  }
+
+  // ============================================
+  // CLEAR CART
+  // ============================================
+  async function clearCart() {
+    try {
+      const itemIds = items.value.map((item) => item.id);
+      
+      items.value = [];
+      totalPrice.value = 0;
+      saveToLocalStorage();
+
+      if (useApi.value && itemIds.length > 0) {
+        try {
+          for (const id of itemIds) {
+            await cartAPI.removeItem({ product_id: id });
+          }
+          await fetchCart();
+        } catch (err) {
+          console.warn('⚠️ Failed to clear cart via API:', err.message);
+          if (err.response?.status === 404) {
+            useApi.value = false;
+          }
+        }
+      }
+
+      console.log('✅ Cart cleared');
+      return { success: true, message: 'Cart cleared' };
+    } catch (err) {
+      console.error('❌ Failed to clear cart:', err.message);
+      return { success: false, message: 'Failed to clear cart' };
+    }
+  }
+
+  // ============================================
+  // HELPERS
+  // ============================================
   function getProductLink(item) {
     if (!item) return '/collections';
     if (item.product_slug) {
@@ -366,10 +407,14 @@ export const useCartStore = defineStore('cart', () => {
     return `/product/${item.id}`;
   }
 
+  function getItemDisplayPrice(item) {
+    if (!item) return 0;
+    return item.price || 0;
+  }
+
   // ============================================
   // AUTHENTICATION HELPERS
   // ============================================
-
   function setUser(email) {
     console.log(`👤 SET USER: ${email || 'guest'}`);
     currentUserEmail.value = email;
@@ -401,25 +446,19 @@ export const useCartStore = defineStore('cart', () => {
     return currentUserEmail.value;
   }
 
-  function getItemDisplayPrice(item) {
-    if (!item) return 0;
-    return item.price || 0;
-  }
-
   // ============================================
   // INITIALIZATION
   // ============================================
-
-  // Watch for changes and save to localStorage
   watch(items, () => {
     saveToLocalStorage();
   }, { deep: true });
 
-  // Initialize with localStorage
   loadFromLocalStorage();
 
+  // ============================================
+  // RETURN
+  // ============================================
   return {
-    // State
     items,
     totalPrice,
     isLoading,
@@ -429,31 +468,25 @@ export const useCartStore = defineStore('cart', () => {
     authRequiredMessage,
     currentUserEmail,
 
-    // Getters
     itemCount,
     subtotal,
     tax,
     total,
 
-    // Actions
     fetchCart,
-    updateCartItem,
     addToCart,
     updateQuantity,
     removeItem,
     clearCart,
 
-    // Helpers
     getProductLink,
     getItemDisplayPrice,
 
-    // Auth Helpers
     setUser,
     addPendingAfterLogin,
     clearUserCartDisplay,
     getUserEmail,
 
-    // Storage
     loadFromLocalStorage,
     saveToLocalStorage,
   };
