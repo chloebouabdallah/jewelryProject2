@@ -111,26 +111,68 @@
             </div>
           </div>
           
+          <!-- Stock Status -->
+          <div class="mb-4 md:mb-6">
+            <div class="flex items-center gap-2">
+              <div 
+                class="w-3 h-3 rounded-full"
+                :class="{
+                  'bg-green-500': product.stock > 10,
+                  'bg-amber-500': product.stock > 0 && product.stock <= 10,
+                  'bg-red-500': product.stock === 0
+                }"
+              ></div>
+              <span class="text-sm font-medium" :class="{
+                'text-green-600': product.stock > 10,
+                'text-amber-600': product.stock > 0 && product.stock <= 10,
+                'text-red-600': product.stock === 0
+              }">
+                {{ product.stock > 10 ? 'In Stock' : product.stock > 0 ? `Only ${product.stock} left` : 'Out of Stock' }}
+              </span>
+            </div>
+          </div>
+          
           <!-- Quantity -->
           <div class="mb-4 md:mb-6">
             <span class="font-semibold text-stone-800 block mb-1.5 md:mb-2 text-sm md:text-base">Quantity</span>
             <div class="flex items-center gap-3 md:gap-4">
               <div class="flex items-center border-2 border-amber-300 rounded-full overflow-hidden">
-                <button @click="decrementQuantity" class="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center text-amber-600 hover:bg-amber-600 hover:text-white transition text-lg md:text-xl">-</button>
+                <button 
+                  @click="decrementQuantity" 
+                  class="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center text-amber-600 hover:bg-amber-600 hover:text-white transition text-lg md:text-xl"
+                  :disabled="quantity <= 1"
+                >
+                  -
+                </button>
                 <span class="w-10 md:w-12 text-center text-stone-800 font-semibold text-sm md:text-base">{{ quantity }}</span>
-                <button @click="incrementQuantity" class="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center text-amber-600 hover:bg-amber-600 hover:text-white transition text-lg md:text-xl">+</button>
+                <button 
+                  @click="incrementQuantity" 
+                  class="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center text-amber-600 hover:bg-amber-600 hover:text-white transition text-lg md:text-xl"
+                  :disabled="quantity >= product.stock"
+                >
+                  +
+                </button>
               </div>
-              <span class="text-stone-500 text-xs md:text-sm">{{ product.stock || 10 }} left in stock</span>
+              <span class="text-stone-500 text-xs md:text-sm">{{ product.stock || 0 }} available</span>
             </div>
           </div>
           
           <!-- Actions -->
           <div class="flex flex-col sm:flex-row gap-3 md:gap-4 mb-6 md:mb-8">
-            <button @click="addToCart" class="flex-1 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white py-2.5 md:py-4 rounded-full font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:scale-[1.02] text-sm md:text-base">
-              <i class="fas fa-shopping-bag text-xs md:text-sm"></i> Add to Cart
+            <button 
+              @click="addToCart" 
+              class="flex-1 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white py-2.5 md:py-4 rounded-full font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:scale-[1.02] text-sm md:text-base"
+              :disabled="product.stock === 0 || isAddingToCart"
+            >
+              <i class="fas fa-shopping-bag text-xs md:text-sm"></i>
+              {{ isAddingToCart ? 'Adding...' : 'Add to Cart' }}
             </button>
-            <button @click="toggleWishlist" class="flex-1 border-2 border-amber-600 text-amber-700 hover:bg-amber-600 hover:text-white py-2.5 md:py-4 rounded-full font-semibold transition-all duration-300 flex items-center justify-center gap-2 text-sm md:text-base">
-              <i :class="isInWishlist ? 'fas fa-heart' : 'far fa-heart'" class="text-xs md:text-sm"></i> {{ isInWishlist ? 'Remove from Wishlist' : 'Add to Wishlist' }}
+            <button 
+              @click="toggleWishlist" 
+              class="flex-1 border-2 border-amber-600 text-amber-700 hover:bg-amber-600 hover:text-white py-2.5 md:py-4 rounded-full font-semibold transition-all duration-300 flex items-center justify-center gap-2 text-sm md:text-base"
+            >
+              <i :class="isInWishlist ? 'fas fa-heart' : 'far fa-heart'" class="text-xs md:text-sm"></i> 
+              {{ isInWishlist ? 'Remove from Wishlist' : 'Add to Wishlist' }}
             </button>
           </div>
           
@@ -177,6 +219,13 @@
                 <div v-if="related.badge && related.badge !== 'none'" class="absolute top-1 right-1 bg-amber-100/90 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[8px] md:text-[10px] font-semibold text-amber-800">
                   {{ related.badge.replace('_', ' ').toUpperCase() }}
                 </div>
+                <!-- Stock indicator on related product -->
+                <div v-if="related.stock === 0" class="absolute bottom-1 left-1 bg-red-500/90 backdrop-blur-sm text-white text-[8px] md:text-[10px] px-1.5 py-0.5 rounded-full">
+                  Out of Stock
+                </div>
+                <div v-else-if="related.stock <= 5" class="absolute bottom-1 left-1 bg-amber-500/90 backdrop-blur-sm text-white text-[8px] md:text-[10px] px-1.5 py-0.5 rounded-full">
+                  {{ related.stock }} left
+                </div>
               </div>
               <div class="p-2 md:p-3">
                 <h3 class="font-semibold text-stone-800 text-xs sm:text-sm">{{ related.name }}</h3>
@@ -187,12 +236,12 @@
         </div>
       </section>
       
-      <!-- ✅ REVIEW SECTION - Using original reviews store -->
+      <!-- Review Section -->
       <div class="fade-on-scroll fade-up">
         <ReviewSection 
-          :productId="product.id" 
-          :productName="product.name" 
-          :productImage="product.image" 
+          :productId="product?.id" 
+          :productName="product?.name" 
+          :productImage="product?.image" 
         />
       </div>
       
@@ -204,6 +253,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useOsimartProductsStore } from '@/stores/osimartProducts'
+import { useOsimartStockStore } from '@/stores/osimartStock'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import { useWishlistStore } from '@/stores/wishlist'
@@ -212,6 +262,7 @@ import ReviewSection from '@/components/ReviewSection.vue'
 
 const route = useRoute()
 const productStore = useOsimartProductsStore()
+const stockStore = useOsimartStockStore()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
 const wishlistStore = useWishlistStore()
@@ -226,6 +277,7 @@ const currentImage = ref('')
 const product = ref(null)
 const relatedProducts = ref([])
 const isLoading = ref(false)
+const isAddingToCart = ref(false)
 
 // ============================================
 // COMPUTED
@@ -239,26 +291,26 @@ const isInWishlist = computed(() => {
 // METHODS
 // ============================================
 function incrementQuantity() {
-  if (quantity.value < (product.value?.stock || 10)) quantity.value++
+  if (quantity.value < (product.value?.stock || 0)) {
+    quantity.value++
+  }
 }
 
 function decrementQuantity() {
-  if (quantity.value > 1) quantity.value--
+  if (quantity.value > 1) {
+    quantity.value--
+  }
 }
 
 async function addToCart() {
-  if (product.value) {
-    // Get the variant ID - use the first variant or the product ID
-    let variantId = product.value.id;
-    
-    // If product has variants, use the first one
-    if (product.value.variants && product.value.variants.length > 0) {
-      variantId = product.value.variants[0].id;
-    }
-    
+  if (!product.value || product.value.stock === 0 || isAddingToCart.value) return
+  
+  isAddingToCart.value = true
+  
+  try {
     const cartItem = {
-      variant_id: variantId,
       id: product.value.id,
+      product_id: product.value.id,
       name: product.value.name,
       price: product.value.price,
       image: product.value.image,
@@ -268,12 +320,33 @@ async function addToCart() {
       metalType: product.value.metalType || 'none',
       originalPrice: product.value.originalPrice || product.value.price,
       displayText: product.value.displayText || '',
-    };
+      slug: product.value.slug || '',
+      category: product.value.category || '',
+      category_slug: product.value.category_slug || '',
+      badge: product.value.badge || '',
+      stock: product.value.stock || 0,
+    }
     
-    await cartStore.addToCart(cartItem, authStore.isAuthenticated, authStore.openAuthModal);
+    const result = await cartStore.addToCart(
+      cartItem, 
+      authStore.isAuthenticated, 
+      authStore.openAuthModal
+    )
+    
+    if (result.success) {
+      // Decrease stock locally after adding to cart
+      if (product.value) {
+        product.value.stock = Math.max(0, product.value.stock - quantity.value)
+        // Update stock in stock store
+        await stockStore.decreaseStock(product.value.id, quantity.value)
+      }
+    }
+  } catch (error) {
+    console.error('❌ Failed to add to cart:', error)
+  } finally {
+    isAddingToCart.value = false
   }
 }
-
 
 function toggleWishlist() {
   if (product.value) {
@@ -292,11 +365,13 @@ async function loadProduct(id) {
   try {
     isLoading.value = true
     product.value = null
+    quantity.value = 1
     
     console.log('🔍 Loading product with ID/slug:', id)
     
     let productData = null
     
+    // Try to find in existing products
     if (productStore.products && productStore.products.length > 0) {
       productData = productStore.products.find(p => 
         p.slugified_name === id || 
@@ -305,6 +380,7 @@ async function loadProduct(id) {
       )
     }
     
+    // If not found, fetch all products
     if (!productData) {
       console.log('🔄 Product not found locally, fetching all products...')
       await productStore.fetchProducts()
@@ -315,6 +391,7 @@ async function loadProduct(id) {
       )
     }
     
+    // If still not found, try direct API call
     if (!productData) {
       console.log('🔄 Product not found by slug, trying direct API call...')
       try {
@@ -330,21 +407,43 @@ async function loadProduct(id) {
     }
     
     if (productData) {
+      // Map product data
       product.value = productStore.mapProduct(productData)
       
+      // ✅ Fetch stock for this product
+      if (product.value && product.value.id) {
+        await stockStore.fetchProductStock(product.value.id)
+        // Update product stock from stock store
+        product.value.stock = stockStore.getProductStock(product.value.id)
+      }
+      
+      // Set main image
       if (product.value && product.value.image) {
         currentImage.value = product.value.image
       }
       
+      // Load related products
       if (product.value.category_id) {
         await productStore.fetchProducts({ category: product.value.category_id })
         const allProducts = productStore.mapProducts(productStore.products)
         relatedProducts.value = allProducts
           .filter(p => p.id !== product.value.id)
           .slice(0, 4)
+        
+        // Fetch stock for related products
+        const relatedIds = relatedProducts.value.map(p => p.id)
+        if (relatedIds.length > 0) {
+          await stockStore.fetchProductsStock(relatedIds)
+          // Update related products stock
+          relatedProducts.value = relatedProducts.value.map(p => ({
+            ...p,
+            stock: stockStore.getProductStock(p.id)
+          }))
+        }
       }
       
       console.log('✅ Product loaded:', product.value.name)
+      console.log('📦 Stock:', product.value.stock)
     } else {
       console.warn('⚠️ Product not found:', id)
       product.value = null
@@ -385,5 +484,10 @@ onMounted(() => {
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

@@ -15,7 +15,8 @@ export const useCartStore = defineStore('cart', () => {
   const pendingProduct = ref(null);
   const authRequiredMessage = ref('');
   const currentUserEmail = ref(null);
-  const useApi = ref(false); // Disabled by default
+  const useApi = ref(true); // Enable API calls
+  const isSyncing = ref(false);
 
   // ============================================
   // GETTERS
@@ -55,7 +56,9 @@ export const useCartStore = defineStore('cart', () => {
       try {
         items.value = JSON.parse(savedCart);
         totalPrice.value = subtotal.value;
+        console.log('📦 Loaded from localStorage:', items.value.length, 'items');
       } catch (e) {
+        console.warn('⚠️ Failed to parse localStorage:', e);
         items.value = [];
         totalPrice.value = 0;
       }
@@ -93,9 +96,11 @@ export const useCartStore = defineStore('cart', () => {
   function updateLocalCart(itemId, action, quantity, extraData = {}) {
     if (action === 'delete' || action === 'remove') {
       items.value = items.value.filter((item) => item.id !== itemId);
+      console.log(`🗑️ Removed item ${itemId} from local cart`);
     } else if (action === 'add' || action === 'update') {
       const existingItem = items.value.find((item) => item.id === itemId);
       if (existingItem) {
+        // Update existing item
         existingItem.quantity = quantity;
         if (extraData.name) existingItem.name = extraData.name;
         if (extraData.price) existingItem.price = extraData.price;
@@ -115,7 +120,9 @@ export const useCartStore = defineStore('cart', () => {
         if (extraData.carat) existingItem.carat = extraData.carat;
         if (extraData.band) existingItem.band = extraData.band;
         if (extraData.accent) existingItem.accent = extraData.accent;
+        console.log(`📝 Updated item ${itemId} in local cart, quantity: ${quantity}`);
       } else if (action === 'add') {
+        // Add new item
         items.value.push({
           id: itemId,
           product_id: extraData.product_id || itemId,
@@ -140,10 +147,67 @@ export const useCartStore = defineStore('cart', () => {
           variant_id: extraData.variant_id || itemId,
           selected_variants: [],
         });
+        console.log(`➕ Added item ${itemId} to local cart, quantity: ${quantity}`);
       }
     }
     totalPrice.value = subtotal.value;
     saveToLocalStorage();
+  }
+
+  // ============================================
+  // SYNC LOCAL CART WITH API
+  // ============================================
+  async function syncWithApi() {
+    if (!useApi.value || isSyncing.value) return;
+    
+    isSyncing.value = true;
+    console.log('🔄 Syncing cart with API...');
+    
+    try {
+      // Get current cart from API
+      const response = await cartAPI.viewCart();
+      console.log('✅ API cart response:', response.data);
+      
+      if (response.data && response.data.items) {
+        // Transform API items to local format
+        const apiItems = response.data.items.map(item => ({
+          id: item.id || item.product_id,
+          product_id: item.product_id,
+          product_slug: item.slug || '',
+          quantity: item.quantity || 1,
+          name: item.name || 'Product',
+          price: item.price || 0,
+          image: item.image ? mediaAPI.getImageUrl(item.image) : '/placeholder.jpg',
+          goldWeight: item.gold_weight || item.goldWeight || 0,
+          silverWeight: item.silver_weight || item.silverWeight || 0,
+          metalType: item.metal_type || item.metalType || 'none',
+          originalPrice: item.original_price || item.originalPrice || item.price || 0,
+          displayText: item.display_text || item.displayText || '',
+          isCustom: item.is_custom || item.isCustom || false,
+          description: item.description || '',
+          metal: item.metal || '',
+          setting: item.setting || '',
+          shape: item.shape || '',
+          carat: item.carat || '',
+          band: item.band || '',
+          accent: item.accent || '',
+          variant_id: item.variant_id || item.id,
+        }));
+        
+        // Replace local items with API items
+        items.value = apiItems;
+        totalPrice.value = subtotal.value;
+        saveToLocalStorage();
+        console.log('✅ Cart synced from API:', items.value.length, 'items');
+      }
+    } catch (err) {
+      console.warn('⚠️ Failed to sync with API, using localStorage:', err.message);
+      if (err.response?.status === 404) {
+        useApi.value = false;
+      }
+    } finally {
+      isSyncing.value = false;
+    }
   }
 
   // ============================================
@@ -154,58 +218,27 @@ export const useCartStore = defineStore('cart', () => {
     error.value = null;
 
     try {
-      console.log('📦 Fetching cart from API...');
+      console.log('📦 Fetching cart...');
       
+      // Try to sync with API first
       if (useApi.value) {
-        try {
-          const response = await cartAPI.viewCart();
-          console.log('✅ Cart API response:', response.data);
-          
-          if (response.data && response.data.items) {
-            items.value = response.data.items.map(item => ({
-              id: item.id || item.product_id,
-              product_id: item.product_id,
-              product_slug: item.slug || '',
-              quantity: item.quantity || 1,
-              name: item.name || 'Product',
-              price: item.price || 0,
-              image: item.image ? mediaAPI.getImageUrl(item.image) : '/placeholder.jpg',
-              goldWeight: item.goldWeight || 0,
-              silverWeight: item.silverWeight || 0,
-              metalType: item.metalType || 'none',
-              originalPrice: item.original_price || item.price || 0,
-              displayText: item.display_text || '',
-              isCustom: item.is_custom || false,
-              description: item.description || '',
-              metal: item.metal || '',
-              setting: item.setting || '',
-              shape: item.shape || '',
-              carat: item.carat || '',
-              band: item.band || '',
-              accent: item.accent || '',
-              variant_id: item.variant_id || item.id,
-            }));
-            
-            totalPrice.value = subtotal.value;
-            saveToLocalStorage();
-            return items.value;
-          }
-        } catch (err) {
-          console.warn('⚠️ Failed to fetch cart from API:', err.message);
-          if (err.response?.status === 404) {
-            useApi.value = false;
-          }
-        }
+        await syncWithApi();
       }
       
-      console.log('📦 Loading cart from localStorage...');
-      loadFromLocalStorage();
+      // If API is disabled or failed, load from localStorage
+      if (!useApi.value || items.value.length === 0) {
+        console.log('📦 Loading cart from localStorage...');
+        loadFromLocalStorage();
+      }
+      
       console.log('✅ Cart loaded:', items.value.length, 'items');
       return items.value;
       
     } catch (err) {
       console.error('❌ Failed to load cart:', err.message);
       error.value = 'Failed to load cart';
+      // Fallback to localStorage
+      loadFromLocalStorage();
       return items.value;
     } finally {
       isLoading.value = false;
@@ -262,22 +295,35 @@ export const useCartStore = defineStore('cart', () => {
       extraData.price = product.price || 0;
     }
 
-    // Update local cart
+    // Update local cart first (optimistic)
     updateLocalCart(itemId, 'add', product.quantity || 1, extraData);
-    saveToLocalStorage();
 
-    // Try API if enabled
+    // Try API
     if (useApi.value) {
       try {
-        await cartAPI.addItem({
+        const response = await cartAPI.addItem({
           product_id: itemId,
           quantity: product.quantity || 1,
           name: product.name,
           price: product.price,
           image: product.image,
+          gold_weight: product.goldWeight || 0,
+          silver_weight: product.silverWeight || 0,
+          metal_type: product.metalType || 'none',
+          display_text: product.displayText || '',
+          is_custom: product.isCustom || false,
+          description: product.description || '',
+          metal: product.metal || '',
+          setting: product.setting || '',
+          shape: product.shape || '',
+          carat: product.carat || '',
+          band: product.band || '',
+          accent: product.accent || '',
         });
-        console.log('✅ Item added via API');
-        await fetchCart();
+        console.log('✅ Item added via API:', response.data);
+        
+        // Sync with API to get updated cart
+        await syncWithApi();
       } catch (err) {
         console.warn('⚠️ API add failed, using localStorage:', err.message);
         if (err.response?.status === 404) {
@@ -298,67 +344,94 @@ export const useCartStore = defineStore('cart', () => {
   // UPDATE QUANTITY
   // ============================================
   async function updateQuantity(productId, delta) {
-    const item = items.value.find((i) => i.id === productId);
-    if (!item) {
-      return { success: false, message: 'Item not found' };
-    }
+  const item = items.value.find((i) => i.id === productId);
+  if (!item) {
+    return { success: false, message: 'Item not found' };
+  }
 
-    const newQuantity = item.quantity + delta;
+  const newQuantity = item.quantity + delta;
 
-    if (newQuantity <= 0) {
-      return removeItem(productId);
-    }
+  if (newQuantity <= 0) {
+    return removeItem(productId);
+  }
 
-    // Update local cart
-    updateLocalCart(productId, 'update', newQuantity);
-    saveToLocalStorage();
+  // Update local cart first
+  updateLocalCart(productId, 'update', newQuantity);
 
-    // Try API if enabled
-    if (useApi.value) {
+  // Try API if enabled
+  if (useApi.value) {
+    // Try all possible formats
+    const attempts = [
+      { fn: cartAPI.updateItem, name: 'standard' },
+      { fn: cartAPI.updateItemAlt1, name: 'alt1 (item-id)' },
+      { fn: cartAPI.updateItemAlt2, name: 'alt2 (product_id)' },
+      { fn: cartAPI.updateItemAlt3, name: 'alt3 (item_id array)' },
+    ];
+
+    for (const attempt of attempts) {
       try {
-        await cartAPI.updateItem({
+        await attempt.fn({
           product_id: productId,
           quantity: newQuantity,
         });
-        console.log('✅ Quantity updated via API');
-        await fetchCart();
+        console.log(`✅ Quantity updated via API (${attempt.name})`);
+        await syncWithApi();
+        return { success: true };
       } catch (err) {
-        console.warn('⚠️ API update failed, using localStorage:', err.message);
+        console.warn(`⚠️ ${attempt.name} failed:`, err.message);
         if (err.response?.status === 404) {
-          useApi.value = false;
+          // Only disable API if all attempts return 404
+          continue;
         }
       }
     }
-
-    return { success: true };
+    
+    // If all attempts failed with 404, disable API
+    useApi.value = false;
   }
 
-  // ============================================
-  // REMOVE ITEM
-  // ============================================
-  async function removeItem(productId) {
-    // Update local cart
-    updateLocalCart(productId, 'delete');
-    saveToLocalStorage();
+  return { success: true };
+}
 
-    // Try API if enabled
-    if (useApi.value) {
+// ============================================
+// REMOVE ITEM - Try all endpoints
+// ============================================
+async function removeItem(productId) {
+  // Update local cart first
+  updateLocalCart(productId, 'delete');
+
+  // Try API if enabled
+  if (useApi.value) {
+    // Try all possible formats
+    const attempts = [
+      { fn: cartAPI.removeItem, name: 'standard' },
+      { fn: cartAPI.removeItemAlt1, name: 'alt1 (item-id)' },
+      { fn: cartAPI.removeItemAlt2, name: 'alt2 (product_id)' },
+      { fn: cartAPI.removeItemAlt3, name: 'alt3 (item_id array)' },
+    ];
+
+    for (const attempt of attempts) {
       try {
-        await cartAPI.removeItem({
+        await attempt.fn({
           product_id: productId,
         });
-        console.log('✅ Item removed via API');
-        await fetchCart();
+        console.log(`✅ Item removed via API (${attempt.name})`);
+        await syncWithApi();
+        return { success: true };
       } catch (err) {
-        console.warn('⚠️ API remove failed, using localStorage:', err.message);
+        console.warn(`⚠️ ${attempt.name} failed:`, err.message);
         if (err.response?.status === 404) {
-          useApi.value = false;
+          continue;
         }
       }
     }
-
-    return { success: true };
+    
+    // If all attempts failed with 404, disable API
+    useApi.value = false;
   }
+
+  return { success: true };
+}
 
   // ============================================
   // CLEAR CART
@@ -367,16 +440,19 @@ export const useCartStore = defineStore('cart', () => {
     try {
       const itemIds = items.value.map((item) => item.id);
       
+      // Clear local cart
       items.value = [];
       totalPrice.value = 0;
       saveToLocalStorage();
 
+      // Try API
       if (useApi.value && itemIds.length > 0) {
         try {
           for (const id of itemIds) {
             await cartAPI.removeItem({ product_id: id });
           }
-          await fetchCart();
+          console.log('✅ Cart cleared via API');
+          await syncWithApi();
         } catch (err) {
           console.warn('⚠️ Failed to clear cart via API:', err.message);
           if (err.response?.status === 404) {
@@ -453,12 +529,14 @@ export const useCartStore = defineStore('cart', () => {
     saveToLocalStorage();
   }, { deep: true });
 
+  // Load from localStorage on init
   loadFromLocalStorage();
 
   // ============================================
   // RETURN
   // ============================================
   return {
+    // State
     items,
     totalPrice,
     isLoading,
@@ -467,26 +545,33 @@ export const useCartStore = defineStore('cart', () => {
     pendingProduct,
     authRequiredMessage,
     currentUserEmail,
+    isSyncing,
 
+    // Getters
     itemCount,
     subtotal,
     tax,
     total,
 
+    // Actions
     fetchCart,
+    syncWithApi,
     addToCart,
     updateQuantity,
     removeItem,
     clearCart,
 
+    // Helpers
     getProductLink,
     getItemDisplayPrice,
 
+    // Auth
     setUser,
     addPendingAfterLogin,
     clearUserCartDisplay,
     getUserEmail,
 
+    // Storage
     loadFromLocalStorage,
     saveToLocalStorage,
   };

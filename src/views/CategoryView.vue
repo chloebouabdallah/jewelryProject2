@@ -114,7 +114,7 @@
         <div class="flex-1">
           <p class="text-stone-500 text-sm mb-3">Showing {{ filteredProducts.length }} of {{ allProducts.length }} products</p>
           
-          <div v-if="productStore.isLoading" class="text-center py-12">
+          <div v-if="productStore.isLoading || stockStore.isLoading" class="text-center py-12">
             <i class="fas fa-spinner fa-spin text-3xl text-amber-600"></i>
             <p class="text-stone-500 mt-2">Loading products...</p>
           </div>
@@ -124,24 +124,43 @@
               <router-link :to="`/product/${product.slug}`" class="block">
                 <div class="h-44 sm:h-52 md:h-64 overflow-hidden relative">
                   <img :src="product.image" :alt="product.name" class="w-full h-full object-cover transition duration-500 group-hover:scale-105" @error="handleImageError">
+                  
+                  <!-- Badge only - no stock overlay -->
                   <div v-if="product.badge && product.badge !== 'none'" class="absolute top-1 right-1 bg-amber-100/90 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[8px] md:text-[10px] font-semibold text-amber-800">
                     {{ product.badge.replace('_', ' ').toUpperCase() }}
                   </div>
                 </div>
+                
                 <div class="p-2 md:p-3">
                   <h3 class="font-playfair text-xs sm:text-sm md:text-base font-semibold text-stone-800 leading-tight">{{ product.name }}</h3>
                   <p class="text-stone-500 text-[9px] sm:text-xs mt-0.5">
                     {{ product.displayText || product.metalType || 'N/A' }}
-                 </p>
+                  </p>
+                  
+                  <!-- Price and Actions -->
                   <div class="flex justify-between items-center mt-1.5 md:mt-2">
-                    <span class="text-amber-700 font-bold text-xs sm:text-sm md:text-base">
-                      ${{ product.price.toLocaleString() }}
-                    </span>
+                    <div>
+                      <span class="text-amber-700 font-bold text-xs sm:text-sm md:text-base">
+                        ${{ product.price.toLocaleString() }}
+                      </span>
+                      <!-- Stock under price -->
+                      <p v-if="product.stock === 0" class="text-red-500 text-[8px] sm:text-[10px] font-semibold mt-0.5">
+                        Out of Stock
+                      </p>
+                      <p v-else-if="product.stock <= 5" class="text-amber-500 text-[8px] sm:text-[10px] mt-0.5">
+                        Only {{ product.stock }} left
+                      </p>
+                    </div>
                     <div class="flex gap-1">
                       <button @click.prevent="toggleWishlist(product)" class="w-5 h-5 md:w-7 md:h-7 rounded-full bg-amber-100 transition flex items-center justify-center" :class="isInWishlist(product.id) ? 'text-pink-600 bg-pink-100' : 'text-amber-600 hover:bg-pink-100 hover:text-pink-600'">
                         <i :class="isInWishlist(product.id) ? 'fas fa-heart' : 'far fa-heart'" class="text-[9px] md:text-xs"></i>
                       </button>
-                      <button @click.prevent="addToCart(product)" class="w-5 h-5 md:w-7 md:h-7 rounded-full bg-amber-100 text-amber-600 hover:bg-amber-600 hover:text-white transition flex items-center justify-center">
+                      <button 
+                        @click.prevent="addToCart(product)" 
+                        class="w-5 h-5 md:w-7 md:h-7 rounded-full transition flex items-center justify-center"
+                        :class="product.stock === 0 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-amber-100 text-amber-600 hover:bg-amber-600 hover:text-white'"
+                        :disabled="product.stock === 0"
+                      >
                         <i class="fas fa-shopping-bag text-[9px] md:text-xs"></i>
                       </button>
                     </div>
@@ -166,6 +185,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useOsimartCategoriesStore } from '@/stores/osimartCategories'
 import { useOsimartProductsStore } from '@/stores/osimartProducts'
+import { useOsimartStockStore } from '@/stores/osimartStock'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import { useWishlistStore } from '@/stores/wishlist'
@@ -175,6 +195,7 @@ const route = useRoute()
 const router = useRouter()
 const categoryStore = useOsimartCategoriesStore()
 const productStore = useOsimartProductsStore()
+const stockStore = useOsimartStockStore()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
 const wishlistStore = useWishlistStore()
@@ -224,18 +245,19 @@ const mappedCategories = computed(() => {
   return categoryStore.mapCategories(categoryStore.categories)
 })
 
-// ✅ FIXED: ALL PRODUCTS with safe array handling
 const allProducts = computed(() => {
-  // Ensure productStore.products is an array before mapping
   const productList = productStore.products || []
-  return productStore.mapProducts(productList)
+  const mapped = productStore.mapProducts(productList)
+  
+  return mapped.map(product => ({
+    ...product,
+    stock: stockStore.getProductStock(product.id)
+  }))
 })
 
-// ✅ FIXED: FILTERED PRODUCTS
 const filteredProducts = computed(() => {
   let products = allProducts.value
   
-  // Filter by category from URL
   const categorySlug = route.params.category
   if (categorySlug && categorySlug !== 'all') {
     const category = displayCategories.value.find(c => c.slug === categorySlug)
@@ -244,7 +266,6 @@ const filteredProducts = computed(() => {
     }
   }
   
-  // Filter by price
   if (filters.value.price !== 'all') {
     const price = filters.value.price
     switch(price) {
@@ -263,12 +284,10 @@ const filteredProducts = computed(() => {
     }
   }
   
-  // Filter by metal
   if (filters.value.metal !== 'all') {
     products = products.filter(p => p.metalType === filters.value.metal)
   }
   
-  // Filter by badge
   if (filters.value.badge !== 'all') {
     products = products.filter(p => p.badge === filters.value.badge)
   }
@@ -284,16 +303,17 @@ const activeFilterCount = computed(() => {
   return count
 })
 
-// ✅ FIXED: Load products with safe error handling
 async function loadProducts() {
   try {
-    console.log('🔄 Loading all products...')
     await productStore.fetchProducts()
-    // ✅ Safe access with optional chaining and fallback
-    const productCount = productStore.products?.length || 0
-    console.log('✅ Total products loaded:', productCount)
+    const products = productStore.products || []
+    const productIds = products.map(p => p.id).filter(id => id)
+    
+    if (productIds.length > 0) {
+      await stockStore.fetchProductsStock(productIds)
+    }
   } catch (error) {
-    console.error('❌ Failed to load products:', error)
+    console.error('Failed to load products:', error)
   }
 }
 
@@ -304,7 +324,7 @@ function onCategoryChange(category) {
 }
 
 function refetchProducts() {
-  console.log('🔄 Refreshing filter...')
+  loadProducts()
 }
 
 function getProductCount(categoryId) {
@@ -348,6 +368,8 @@ function toggleWishlist(product) {
 }
 
 function addToCart(product) {
+  if (product.stock === 0) return
+  
   cartStore.addToCart(
     {
       id: product.id,
@@ -355,6 +377,7 @@ function addToCart(product) {
       price: product.price,
       image: product.image,
       quantity: 1,
+      stock: product.stock
     },
     authStore.isAuthenticated,
     authStore.openAuthModal
@@ -365,19 +388,15 @@ function handleImageError(event) {
   event.target.src = 'https://placehold.co/400x500/amber/white?text=Image+Not+Found'
 }
 
-// ✅ Watch for route changes
 watch(() => route.params.category, (newSlug) => {
-  console.log('🔄 Route changed to:', newSlug)
   if (newSlug) {
     filters.value.category = newSlug
   }
 }, { immediate: true })
 
-// ✅ Watch for categories to load
 watch(mappedCategories, (newCategories) => {
   if (newCategories && newCategories.length > 0) {
     displayCategories.value = newCategories
-    console.log('📂 Categories loaded:', displayCategories.value.length)
     const slug = route.params.category
     if (slug) {
       filters.value.category = slug
@@ -385,26 +404,13 @@ watch(mappedCategories, (newCategories) => {
   }
 }, { immediate: true })
 
-// ✅ Watch for products to load
-watch(() => productStore.products, (newProducts) => {
-  // ✅ Check if newProducts exists and is an array
-  if (newProducts && Array.isArray(newProducts) && newProducts.length > 0) {
-    console.log('📦 Products loaded in store:', newProducts.length)
-  }
-}, { immediate: true })
-
 onMounted(async () => {
   try {
-    // ✅ Load categories first
     await categoryStore.fetchCategories()
     displayCategories.value = categoryStore.mapCategories(categoryStore.categories)
-    console.log('📂 Categories loaded:', displayCategories.value.length)
-    
-    // ✅ Load ALL products once
     await loadProducts()
-    
   } catch (error) {
-    console.error('❌ Failed to load data:', error)
+    console.error('Failed to load data:', error)
   }
 })
 </script>
