@@ -85,37 +85,15 @@ export const variantAPI = {
   getVariant: (id) => osimartApi.get(`/variant-types/${id}/`),
 };
 
-export const stockAPI = {
-  getProductStock: (productId) => {
-    return osimartApi.get(`/products/${productId}/stock/`);
-  },
-
-  getProductsStock: (productIds) => {
-    return osimartApi.post('/products/stock/bulk/', { product_ids: productIds });
-  },
-
-  updateStock: (productId, stock) => {
-    return osimartApi.patch(`/products/${productId}/`, { stock: stock });
-  },
-
-  checkStock: (productId, quantity = 1) => {
-    return osimartApi.get(`/products/${productId}/stock/check/?quantity=${quantity}`);
-  },
-};
-
 // ============================================
-// ✅ CART API - All methods properly defined
+// CART API
 // ============================================
 export const cartAPI = {
-  // Get cart
   viewCart: () => {
-    console.log('📦 Viewing cart...');
     return osimartApi.get('/cart/view/');
   },
 
-  // ✅ ADD TO CART - KEEP THIS EXACTLY AS IT WAS (WORKING)
   addItem: (data) => {
-    console.log('🔄 Adding to cart:', data);
     const payload = {
       product_id: data.product_id || data.item_id,
       quantity: data.quantity || 1,
@@ -123,32 +101,23 @@ export const cartAPI = {
       price: data.price || 0,
       image: data.image || '',
     };
-    console.log('📤 Sending to /cart/add/:', payload);
     return osimartApi.post('/cart/add/', payload);
   },
 
-  // UPDATE ITEM - Try all possible formats
   updateItem: async (data) => {
-    console.log('🔄 Updating cart item:', data);
-    
-    // Try different formats
     const formats = [
-      // Format 1: product_id with /cart/update/
       {
         url: '/cart/update/',
         payload: { product_id: data.product_id || data.item_id, quantity: data.quantity || 1 }
       },
-      // Format 2: item-id with /cart/update-item/
       {
         url: '/cart/update-item/',
         payload: { 'item-id': data.product_id || data.item_id, action: 'edit', quantity: data.quantity || 1 }
       },
-      // Format 3: product_id with /cart/update-item/
       {
         url: '/cart/update-item/',
         payload: { product_id: data.product_id || data.item_id, action: 'edit', quantity: data.quantity || 1 }
       },
-      // Format 4: item_id as array with /cart/update-item/
       {
         url: '/cart/update-item/',
         payload: { item_id: [data.product_id || data.item_id], action: 'edit', quantity: data.quantity || 1 }
@@ -158,40 +127,29 @@ export const cartAPI = {
     let lastError = null;
     for (const format of formats) {
       try {
-        console.log(`📤 Trying ${format.url}:`, format.payload);
         const response = await osimartApi.post(format.url, format.payload);
-        console.log('✅ Update successful!', response.data);
         return response;
       } catch (error) {
         lastError = error;
-        console.warn(`❌ ${format.url} failed:`, error.response?.status, error.response?.data);
       }
     }
     throw lastError;
   },
 
-  // REMOVE ITEM - Try all possible formats
   removeItem: async (data) => {
-    console.log('🔄 Removing from cart:', data);
-    
-    // Try different formats
     const formats = [
-      // Format 1: product_id with /cart/remove/
       {
         url: '/cart/remove/',
         payload: { product_id: data.product_id || data.item_id }
       },
-      // Format 2: item-id with /cart/update-item/
       {
         url: '/cart/update-item/',
         payload: { 'item-id': data.product_id || data.item_id, action: 'remove' }
       },
-      // Format 3: product_id with /cart/update-item/
       {
         url: '/cart/update-item/',
         payload: { product_id: data.product_id || data.item_id, action: 'remove' }
       },
-      // Format 4: item_id as array with /cart/update-item/
       {
         url: '/cart/update-item/',
         payload: { item_id: [data.product_id || data.item_id], action: 'remove' }
@@ -201,18 +159,16 @@ export const cartAPI = {
     let lastError = null;
     for (const format of formats) {
       try {
-        console.log(`📤 Trying ${format.url}:`, format.payload);
         const response = await osimartApi.post(format.url, format.payload);
-        console.log('✅ Remove successful!', response.data);
         return response;
       } catch (error) {
         lastError = error;
-        console.warn(`❌ ${format.url} failed:`, error.response?.status, error.response?.data);
       }
     }
     throw lastError;
   },
 };
+
 // ============================================
 // ORDERS API
 // ============================================

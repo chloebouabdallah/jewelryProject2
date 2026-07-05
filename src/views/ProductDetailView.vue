@@ -161,11 +161,11 @@
           <div class="flex flex-col sm:flex-row gap-3 md:gap-4 mb-6 md:mb-8">
             <button 
               @click="addToCart" 
-              class="flex-1 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white py-2.5 md:py-4 rounded-full font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:scale-[1.02] text-sm md:text-base"
+              class="flex-1 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white py-2.5 md:py-4 rounded-full font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:scale-[1.02] text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               :disabled="product.stock === 0 || isAddingToCart"
             >
               <i class="fas fa-shopping-bag text-xs md:text-sm"></i>
-              {{ isAddingToCart ? 'Adding...' : 'Add to Cart' }}
+              {{ product.stock === 0 ? 'Out of Stock' : isAddingToCart ? 'Adding...' : 'Add to Cart' }}
             </button>
             <button 
               @click="toggleWishlist" 
@@ -219,7 +219,6 @@
                 <div v-if="related.badge && related.badge !== 'none'" class="absolute top-1 right-1 bg-amber-100/90 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[8px] md:text-[10px] font-semibold text-amber-800">
                   {{ related.badge.replace('_', ' ').toUpperCase() }}
                 </div>
-                <!-- Stock indicator on related product -->
                 <div v-if="related.stock === 0" class="absolute bottom-1 left-1 bg-red-500/90 backdrop-blur-sm text-white text-[8px] md:text-[10px] px-1.5 py-0.5 rounded-full">
                   Out of Stock
                 </div>
@@ -253,7 +252,6 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useOsimartProductsStore } from '@/stores/osimartProducts'
-import { useOsimartStockStore } from '@/stores/osimartStock'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import { useWishlistStore } from '@/stores/wishlist'
@@ -262,7 +260,6 @@ import ReviewSection from '@/components/ReviewSection.vue'
 
 const route = useRoute()
 const productStore = useOsimartProductsStore()
-const stockStore = useOsimartStockStore()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
 const wishlistStore = useWishlistStore()
@@ -334,11 +331,8 @@ async function addToCart() {
     )
     
     if (result.success) {
-      // Decrease stock locally after adding to cart
       if (product.value) {
         product.value.stock = Math.max(0, product.value.stock - quantity.value)
-        // Update stock in stock store
-        await stockStore.decreaseStock(product.value.id, quantity.value)
       }
     }
   } catch (error) {
@@ -407,15 +401,8 @@ async function loadProduct(id) {
     }
     
     if (productData) {
-      // Map product data
+      // Map product data (stock is mapped directly from product data)
       product.value = productStore.mapProduct(productData)
-      
-      // ✅ Fetch stock for this product
-      if (product.value && product.value.id) {
-        await stockStore.fetchProductStock(product.value.id)
-        // Update product stock from stock store
-        product.value.stock = stockStore.getProductStock(product.value.id)
-      }
       
       // Set main image
       if (product.value && product.value.image) {
@@ -429,17 +416,6 @@ async function loadProduct(id) {
         relatedProducts.value = allProducts
           .filter(p => p.id !== product.value.id)
           .slice(0, 4)
-        
-        // Fetch stock for related products
-        const relatedIds = relatedProducts.value.map(p => p.id)
-        if (relatedIds.length > 0) {
-          await stockStore.fetchProductsStock(relatedIds)
-          // Update related products stock
-          relatedProducts.value = relatedProducts.value.map(p => ({
-            ...p,
-            stock: stockStore.getProductStock(p.id)
-          }))
-        }
       }
       
       console.log('✅ Product loaded:', product.value.name)
@@ -450,8 +426,7 @@ async function loadProduct(id) {
     }
   } catch (error) {
     console.error('❌ Failed to load product:', error)
-    product.value = null
-  } finally {
+    product.value = null  } finally {
     isLoading.value = false
   }
 }

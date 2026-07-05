@@ -93,7 +93,7 @@
               <p class="text-xs text-stone-500 mb-1">Active:</p>
               <div class="flex flex-wrap gap-1">
                 <span v-if="filters.category !== 'all'" class="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-1">
-                  {{ getCategoryName(filters.category) }} <i @click="filters.category = 'all'; refetchProducts()" class="fas fa-times cursor-pointer hover:text-amber-950"></i>
+                  {{ getCategoryName(filters.category) }} <i @click="filters.category = 'all'" class="fas fa-times cursor-pointer hover:text-amber-950"></i>
                 </span>
                 <span v-if="filters.price !== 'all'" class="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-1">
                   {{ getPriceLabel(filters.price) }} <i @click="filters.price = 'all'" class="fas fa-times cursor-pointer hover:text-amber-950"></i>
@@ -114,7 +114,7 @@
         <div class="flex-1">
           <p class="text-stone-500 text-sm mb-3">Showing {{ filteredProducts.length }} of {{ allProducts.length }} products</p>
           
-          <div v-if="productStore.isLoading || stockStore.isLoading" class="text-center py-12">
+          <div v-if="productStore.isLoading" class="text-center py-12">
             <i class="fas fa-spinner fa-spin text-3xl text-amber-600"></i>
             <p class="text-stone-500 mt-2">Loading products...</p>
           </div>
@@ -125,7 +125,6 @@
                 <div class="h-44 sm:h-52 md:h-64 overflow-hidden relative">
                   <img :src="product.image" :alt="product.name" class="w-full h-full object-cover transition duration-500 group-hover:scale-105" @error="handleImageError">
                   
-                  <!-- Badge only - no stock overlay -->
                   <div v-if="product.badge && product.badge !== 'none'" class="absolute top-1 right-1 bg-amber-100/90 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[8px] md:text-[10px] font-semibold text-amber-800">
                     {{ product.badge.replace('_', ' ').toUpperCase() }}
                   </div>
@@ -137,13 +136,11 @@
                     {{ product.displayText || product.metalType || 'N/A' }}
                   </p>
                   
-                  <!-- Price and Actions -->
                   <div class="flex justify-between items-center mt-1.5 md:mt-2">
                     <div>
                       <span class="text-amber-700 font-bold text-xs sm:text-sm md:text-base">
                         ${{ product.price.toLocaleString() }}
                       </span>
-                      <!-- Stock under price -->
                       <p v-if="product.stock === 0" class="text-red-500 text-[8px] sm:text-[10px] font-semibold mt-0.5">
                         Out of Stock
                       </p>
@@ -185,7 +182,6 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useOsimartCategoriesStore } from '@/stores/osimartCategories'
 import { useOsimartProductsStore } from '@/stores/osimartProducts'
-import { useOsimartStockStore } from '@/stores/osimartStock'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import { useWishlistStore } from '@/stores/wishlist'
@@ -195,7 +191,6 @@ const route = useRoute()
 const router = useRouter()
 const categoryStore = useOsimartCategoriesStore()
 const productStore = useOsimartProductsStore()
-const stockStore = useOsimartStockStore()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
 const wishlistStore = useWishlistStore()
@@ -247,12 +242,7 @@ const mappedCategories = computed(() => {
 
 const allProducts = computed(() => {
   const productList = productStore.products || []
-  const mapped = productStore.mapProducts(productList)
-  
-  return mapped.map(product => ({
-    ...product,
-    stock: stockStore.getProductStock(product.id)
-  }))
+  return productStore.mapProducts(productList)
 })
 
 const filteredProducts = computed(() => {
@@ -306,12 +296,6 @@ const activeFilterCount = computed(() => {
 async function loadProducts() {
   try {
     await productStore.fetchProducts()
-    const products = productStore.products || []
-    const productIds = products.map(p => p.id).filter(id => id)
-    
-    if (productIds.length > 0) {
-      await stockStore.fetchProductsStock(productIds)
-    }
   } catch (error) {
     console.error('Failed to load products:', error)
   }
@@ -321,10 +305,6 @@ function onCategoryChange(category) {
   if (category && category.slug) {
     router.push(`/category/${category.slug}`)
   }
-}
-
-function refetchProducts() {
-  loadProducts()
 }
 
 function getProductCount(categoryId) {

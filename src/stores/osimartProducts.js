@@ -26,7 +26,7 @@ export const useOsimartProductsStore = defineStore('osimartProducts', () => {
       }
       
       products.value = Array.isArray(productData) ? productData : [];
-      console.log('✅ Products stored:', products.value.length);
+      console.log(`✅ Loaded ${products.value.length} products`);
       return products.value;
       
     } catch (err) {
@@ -110,8 +110,6 @@ export const useOsimartProductsStore = defineStore('osimartProducts', () => {
     const variants = {};
     const seenValues = {};
     const variantStore = useOsimartVariantsStore();
-    
-    console.log('🔍 Extracting variants from product:', product?.name);
     
     const variantTypeMap = {};
     if (product?.vary_by && Array.isArray(product.vary_by)) {
@@ -217,11 +215,10 @@ export const useOsimartProductsStore = defineStore('osimartProducts', () => {
       }
     }
     
-    // ✅ Get images - PREVENT DUPLICATES
+    // Get images
     const allImages = [];
     const seenImages = new Set();
     
-    // 1. Add main image (if it exists)
     if (product.main_image) {
       const mainUrl = mediaAPI.getImageUrl(product.main_image);
       if (mainUrl && !seenImages.has(mainUrl)) {
@@ -230,7 +227,6 @@ export const useOsimartProductsStore = defineStore('osimartProducts', () => {
       }
     }
     
-    // 2. Add gallery images (skip duplicates)
     if (product.gallery && Array.isArray(product.gallery)) {
       product.gallery.forEach(item => {
         if (item && item.media) {
@@ -243,7 +239,6 @@ export const useOsimartProductsStore = defineStore('osimartProducts', () => {
       });
     }
     
-    // ✅ Set main image URL
     let imageUrl = '/placeholder.jpg';
     if (product.main_image) {
       imageUrl = mediaAPI.getImageUrl(product.main_image);
@@ -254,14 +249,12 @@ export const useOsimartProductsStore = defineStore('osimartProducts', () => {
     // Get price
     let price = 0;
     let oldPrice = null;
-    let stock = 0;
     
     if (product.product_variants && product.product_variants.length > 0) {
       const variant = product.product_variants[0];
       if (variant) {
         price = variant.price || 0;
         oldPrice = variant.compare_at_price || null;
-        stock = variant.remaining_stock || 0;
       }
     }
     
@@ -273,6 +266,34 @@ export const useOsimartProductsStore = defineStore('osimartProducts', () => {
     }
     if (price === 0 && product.price_range) {
       price = parseFloat(product.price_range) || 0;
+    }
+    
+    // ✅ FIX: Get stock directly from product data (like title, image, description)
+    let stock = 0;
+    
+    // Try different stock field names
+    if (product.stock !== undefined && product.stock !== null) {
+      stock = parseInt(product.stock) || 0;
+    } else if (product.remaining_stock !== undefined && product.remaining_stock !== null) {
+      stock = parseInt(product.remaining_stock) || 0;
+    } else if (product.quantity !== undefined && product.quantity !== null) {
+      stock = parseInt(product.quantity) || 0;
+    } else if (product.inventory !== undefined && product.inventory !== null) {
+      stock = parseInt(product.inventory) || 0;
+    } else if (product.inventory_quantity !== undefined && product.inventory_quantity !== null) {
+      stock = parseInt(product.inventory_quantity) || 0;
+    } else if (product.available !== undefined && product.available !== null) {
+      stock = parseInt(product.available) || 0;
+    }
+    
+    // If no stock found at product level, try variants
+    if (stock === 0 && product.product_variants && product.product_variants.length > 0) {
+      let totalStock = 0;
+      product.product_variants.forEach(v => {
+        const variantStock = parseInt(v.remaining_stock || v.stock || v.quantity || 0);
+        totalStock += variantStock;
+      });
+      stock = totalStock;
     }
     
     const cleanDescription = stripHtml(product.description);
@@ -346,12 +367,12 @@ export const useOsimartProductsStore = defineStore('osimartProducts', () => {
       oldPrice: oldPrice,
       description: cleanDescription,
       image: imageUrl,
-      images: allImages, // ✅ Unique images only
+      images: allImages,
       category: categoryName,
       category_id: categoryId,
       category_slug: categorySlug,
       badge: badge,
-      stock: stock || product.stock || 0,
+      stock: stock, // ✅ Stock mapped directly like title, image, description
       rating: 5.0,
       review_count: 0,
       tags: tags,
