@@ -60,6 +60,7 @@ const isWishlisted = computed(() => wishlistStore.isInWishlist(props.product.id)
 const toggleWishlist = () => {
   wishlistStore.toggleWishlist({
     id: props.product.id,
+    variant_id: props.product.variant_id,
     name: props.product.name,
     price: props.product.price,
     image: props.product.image,
@@ -72,6 +73,7 @@ const handleAddToCart = () => {
   cartStore.addToCart(
     {
       id: props.product.id,
+      variant_id: props.product.variant_id,
       name: props.product.name,
       price: props.product.price,
       image: props.product.image,

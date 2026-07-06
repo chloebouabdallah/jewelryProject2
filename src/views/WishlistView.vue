@@ -80,6 +80,7 @@ const addToCart = (product) => {
   cartStore.addToCart(
     {
       id: product.id,
+      variant_id: product.variant_id,
       name: product.name,
       price: product.price,
       image: product.image,

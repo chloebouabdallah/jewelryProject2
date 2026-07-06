@@ -76,14 +76,14 @@ export const useCartStore = defineStore('cart', () => {
     
     console.log('🔍 Extracting ID from:', product.name || product.id);
     
-    if (product.id) {
-      console.log('✅ Using product ID:', product.id);
-      return product.id;
+    if (product.variant_id) {
+      console.log('✅ Using variant ID:', product.variant_id);
+      return product.variant_id;
     }
     
-    if (product.product_id) {
-      console.log('✅ Using product_id:', product.product_id);
-      return product.product_id;
+    if (product.id) {
+      console.log('✅ Using item ID:', product.id);
+      return product.id;
     }
     
     console.error('❌ Could not extract valid ID from product');
@@ -158,7 +158,7 @@ export const useCartStore = defineStore('cart', () => {
   // SYNC LOCAL CART WITH API
   // ============================================
   async function syncWithApi() {
-    if (!useApi.value || isSyncing.value) return;
+    if (!useApi.value || isSyncing.value) return false;
     
     isSyncing.value = true;
     console.log('🔄 Syncing cart with API...');
@@ -168,21 +168,20 @@ export const useCartStore = defineStore('cart', () => {
       const response = await cartAPI.viewCart();
       console.log('✅ API cart response:', response.data);
       
-      if (response.data && response.data.items) {
-        // Transform API items to local format
-        const apiItems = response.data.items.map(item => ({
-          id: item.id || item.product_id,
-          product_id: item.product_id,
+      if (response.data && response.data.cart) {
+        const apiItems = Object.values(response.data.cart).map(item => ({
+          id: item.id,
+          product_id: item.product_id || '',
           product_slug: item.slug || '',
-          quantity: item.quantity || 1,
+          quantity: Number(item.quantity) || 1,
           name: item.name || 'Product',
-          price: item.price || 0,
+          price: Number(item.price) || 0,
           image: item.image ? mediaAPI.getImageUrl(item.image) : '/placeholder.jpg',
           goldWeight: item.gold_weight || item.goldWeight || 0,
           silverWeight: item.silver_weight || item.silverWeight || 0,
           metalType: item.metal_type || item.metalType || 'none',
           originalPrice: item.original_price || item.originalPrice || item.price || 0,
-          displayText: item.display_text || item.displayText || '',
+          displayText: item.display_text || item.displayText || item.values?.join(' · ') || '',
           isCustom: item.is_custom || item.isCustom || false,
           description: item.description || '',
           metal: item.metal || '',
@@ -191,7 +190,8 @@ export const useCartStore = defineStore('cart', () => {
           carat: item.carat || '',
           band: item.band || '',
           accent: item.accent || '',
-          variant_id: item.variant_id || item.id,
+          variant_id: item.id,
+          stock: Number(item.remaining_stock) || 0,
         }));
         
         // Replace local items with API items
@@ -199,12 +199,12 @@ export const useCartStore = defineStore('cart', () => {
         totalPrice.value = subtotal.value;
         saveToLocalStorage();
         console.log('✅ Cart synced from API:', items.value.length, 'items');
+        return true;
       }
+      throw new Error('Unexpected cart response from Osimart');
     } catch (err) {
-      console.warn('⚠️ Failed to sync with API, using localStorage:', err.message);
-      if (err.response?.status === 404) {
-        useApi.value = false;
-      }
+      console.error('❌ Failed to sync cart with Osimart:', err.response?.data || err.message);
+      return false;
     } finally {
       isSyncing.value = false;
     }
@@ -221,14 +221,13 @@ export const useCartStore = defineStore('cart', () => {
       console.log('📦 Fetching cart...');
       
       // Try to sync with API first
-      if (useApi.value) {
-        await syncWithApi();
-      }
-      
-      // If API is disabled or failed, load from localStorage
-      if (!useApi.value || items.value.length === 0) {
+      const apiSucceeded = useApi.value && await syncWithApi();
+
+      // A successful empty API cart is authoritative; localStorage is fallback only.
+      if (!apiSucceeded) {
         console.log('📦 Loading cart from localStorage...');
         loadFromLocalStorage();
+        error.value = 'Failed to load cart from Osimart';
       }
       
       console.log('✅ Cart loaded:', items.value.length, 'items');
@@ -295,41 +294,18 @@ export const useCartStore = defineStore('cart', () => {
       extraData.price = product.price || 0;
     }
 
-    // Update local cart first (optimistic)
-    updateLocalCart(itemId, 'add', product.quantity || 1, extraData);
-
-    // Try API
     if (useApi.value) {
       try {
-        const response = await cartAPI.addItem({
-          product_id: itemId,
-          quantity: product.quantity || 1,
-          name: product.name,
-          price: product.price,
-          image: product.image,
-          gold_weight: product.goldWeight || 0,
-          silver_weight: product.silverWeight || 0,
-          metal_type: product.metalType || 'none',
-          display_text: product.displayText || '',
-          is_custom: product.isCustom || false,
-          description: product.description || '',
-          metal: product.metal || '',
-          setting: product.setting || '',
-          shape: product.shape || '',
-          carat: product.carat || '',
-          band: product.band || '',
-          accent: product.accent || '',
-        });
+        const response = await cartAPI.addItem(itemId, product.quantity || 1);
         console.log('✅ Item added via API:', response.data);
-        
-        // Sync with API to get updated cart
         await syncWithApi();
       } catch (err) {
-        console.warn('⚠️ API add failed, using localStorage:', err.message);
-        if (err.response?.status === 404) {
-          useApi.value = false;
-        }
+        console.error('❌ Osimart add failed:', err.response?.data || err.message);
+        error.value = 'Failed to add item to cart';
+        return { success: false, message: error.value };
       }
+    } else {
+      updateLocalCart(itemId, 'add', product.quantity || 1, extraData);
     }
 
     lastAddedMessage.value = `${product.name} added to cart!`;
@@ -355,81 +331,47 @@ export const useCartStore = defineStore('cart', () => {
     return removeItem(productId);
   }
 
-  // Update local cart first
-  updateLocalCart(productId, 'update', newQuantity);
-
-  // Try API if enabled
   if (useApi.value) {
-    // Try all possible formats
-    const attempts = [
-      { fn: cartAPI.updateItem, name: 'standard' },
-      { fn: cartAPI.updateItemAlt1, name: 'alt1 (item-id)' },
-      { fn: cartAPI.updateItemAlt2, name: 'alt2 (product_id)' },
-      { fn: cartAPI.updateItemAlt3, name: 'alt3 (item_id array)' },
-    ];
-
-    for (const attempt of attempts) {
-      try {
-        await attempt.fn({
-          product_id: productId,
-          quantity: newQuantity,
-        });
-        console.log(`✅ Quantity updated via API (${attempt.name})`);
-        await syncWithApi();
-        return { success: true };
-      } catch (err) {
-        console.warn(`⚠️ ${attempt.name} failed:`, err.message);
-        if (err.response?.status === 404) {
-          // Only disable API if all attempts return 404
-          continue;
-        }
+    try {
+      const quantity = Math.abs(delta);
+      if (delta > 0) {
+        await cartAPI.addItem(item.variant_id || productId, quantity);
+      } else {
+        await cartAPI.removeItem(item.variant_id || productId, quantity);
       }
+      await syncWithApi();
+      return { success: true };
+    } catch (err) {
+      console.error('❌ Osimart quantity update failed:', err.response?.data || err.message);
+      error.value = 'Failed to update cart quantity';
+      return { success: false, message: error.value };
     }
-    
-    // If all attempts failed with 404, disable API
-    useApi.value = false;
   }
 
+  updateLocalCart(productId, 'update', newQuantity);
   return { success: true };
 }
 
 // ============================================
-// REMOVE ITEM - Try all endpoints
+// REMOVE ITEM
 // ============================================
 async function removeItem(productId) {
-  // Update local cart first
-  updateLocalCart(productId, 'delete');
+  const item = items.value.find((i) => i.id === productId);
+  if (!item) return { success: false, message: 'Item not found' };
 
-  // Try API if enabled
   if (useApi.value) {
-    // Try all possible formats
-    const attempts = [
-      { fn: cartAPI.removeItem, name: 'standard' },
-      { fn: cartAPI.removeItemAlt1, name: 'alt1 (item-id)' },
-      { fn: cartAPI.removeItemAlt2, name: 'alt2 (product_id)' },
-      { fn: cartAPI.removeItemAlt3, name: 'alt3 (item_id array)' },
-    ];
-
-    for (const attempt of attempts) {
-      try {
-        await attempt.fn({
-          product_id: productId,
-        });
-        console.log(`✅ Item removed via API (${attempt.name})`);
-        await syncWithApi();
-        return { success: true };
-      } catch (err) {
-        console.warn(`⚠️ ${attempt.name} failed:`, err.message);
-        if (err.response?.status === 404) {
-          continue;
-        }
-      }
+    try {
+      await cartAPI.removeAll(item.variant_id || productId);
+      await syncWithApi();
+      return { success: true };
+    } catch (err) {
+      console.error('❌ Osimart remove failed:', err.response?.data || err.message);
+      error.value = 'Failed to remove item from cart';
+      return { success: false, message: error.value };
     }
-    
-    // If all attempts failed with 404, disable API
-    useApi.value = false;
   }
 
+  updateLocalCart(productId, 'delete');
   return { success: true };
 }
 
@@ -449,7 +391,7 @@ async function removeItem(productId) {
       if (useApi.value && itemIds.length > 0) {
         try {
           for (const id of itemIds) {
-            await cartAPI.removeItem({ product_id: id });
+            await cartAPI.removeAll(id);
           }
           console.log('✅ Cart cleared via API');
           await syncWithApi();

@@ -89,84 +89,27 @@ export const variantAPI = {
 // CART API
 // ============================================
 export const cartAPI = {
-  viewCart: () => {
-    return osimartApi.get('/cart/view/');
-  },
-
-  addItem: (data) => {
-    const payload = {
-      product_id: data.product_id || data.item_id,
-      quantity: data.quantity || 1,
-      name: data.name || 'Product',
-      price: data.price || 0,
-      image: data.image || '',
-    };
-    return osimartApi.post('/cart/add/', payload);
-  },
-
-  updateItem: async (data) => {
-    const formats = [
-      {
-        url: '/cart/update/',
-        payload: { product_id: data.product_id || data.item_id, quantity: data.quantity || 1 }
-      },
-      {
-        url: '/cart/update-item/',
-        payload: { 'item-id': data.product_id || data.item_id, action: 'edit', quantity: data.quantity || 1 }
-      },
-      {
-        url: '/cart/update-item/',
-        payload: { product_id: data.product_id || data.item_id, action: 'edit', quantity: data.quantity || 1 }
-      },
-      {
-        url: '/cart/update-item/',
-        payload: { item_id: [data.product_id || data.item_id], action: 'edit', quantity: data.quantity || 1 }
-      },
-    ];
-
-    let lastError = null;
-    for (const format of formats) {
-      try {
-        const response = await osimartApi.post(format.url, format.payload);
-        return response;
-      } catch (error) {
-        lastError = error;
-      }
-    }
-    throw lastError;
-  },
-
-  removeItem: async (data) => {
-    const formats = [
-      {
-        url: '/cart/remove/',
-        payload: { product_id: data.product_id || data.item_id }
-      },
-      {
-        url: '/cart/update-item/',
-        payload: { 'item-id': data.product_id || data.item_id, action: 'remove' }
-      },
-      {
-        url: '/cart/update-item/',
-        payload: { product_id: data.product_id || data.item_id, action: 'remove' }
-      },
-      {
-        url: '/cart/update-item/',
-        payload: { item_id: [data.product_id || data.item_id], action: 'remove' }
-      },
-    ];
-
-    let lastError = null;
-    for (const format of formats) {
-      try {
-        const response = await osimartApi.post(format.url, format.payload);
-        return response;
-      } catch (error) {
-        lastError = error;
-      }
-    }
-    throw lastError;
-  },
+  viewCart: () => osimartApi.get('/cart/view/'),
+  updateItem: ({ item_id, action, quantity }) => osimartApi.post('/cart/update-item/', {
+    item_id,
+    action,
+    quantity,
+  }),
+  addItem: (item_id, quantity = 1) => cartAPI.updateItem({
+    item_id,
+    action: 'add',
+    quantity,
+  }),
+  removeItem: (item_id, quantity = 1) => cartAPI.updateItem({
+    item_id,
+    action: 'remove',
+    quantity,
+  }),
+  removeAll: (item_id) => cartAPI.updateItem({
+    item_id,
+    action: 'remove_all',
+    quantity: 0,
+  }),
 };
 
 // ============================================

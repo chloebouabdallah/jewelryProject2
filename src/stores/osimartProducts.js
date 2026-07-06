@@ -268,33 +268,11 @@ export const useOsimartProductsStore = defineStore('osimartProducts', () => {
       price = parseFloat(product.price_range) || 0;
     }
     
-    // ✅ FIX: Get stock directly from product data (like title, image, description)
-    let stock = 0;
-    
-    // Try different stock field names
-    if (product.stock !== undefined && product.stock !== null) {
-      stock = parseInt(product.stock) || 0;
-    } else if (product.remaining_stock !== undefined && product.remaining_stock !== null) {
-      stock = parseInt(product.remaining_stock) || 0;
-    } else if (product.quantity !== undefined && product.quantity !== null) {
-      stock = parseInt(product.quantity) || 0;
-    } else if (product.inventory !== undefined && product.inventory !== null) {
-      stock = parseInt(product.inventory) || 0;
-    } else if (product.inventory_quantity !== undefined && product.inventory_quantity !== null) {
-      stock = parseInt(product.inventory_quantity) || 0;
-    } else if (product.available !== undefined && product.available !== null) {
-      stock = parseInt(product.available) || 0;
-    }
-    
-    // If no stock found at product level, try variants
-    if (stock === 0 && product.product_variants && product.product_variants.length > 0) {
-      let totalStock = 0;
-      product.product_variants.forEach(v => {
-        const variantStock = parseInt(v.remaining_stock || v.stock || v.quantity || 0);
-        totalStock += variantStock;
-      });
-      stock = totalStock;
-    }
+    // Osimart exposes the dashboard inventory total as remaining_stock.
+    const stock = Number.isFinite(Number(product.remaining_stock))
+      ? Number(product.remaining_stock)
+      : 0;
+    const defaultVariant = product.product_variants?.[0] || null;
     
     const cleanDescription = stripHtml(product.description);
     
@@ -361,6 +339,7 @@ export const useOsimartProductsStore = defineStore('osimartProducts', () => {
     
     return {
       id: product.id || '',
+      variant_id: defaultVariant?.id || '',
       name: product.name || '',
       slug: product.slugified_name || product.name?.toLowerCase().replace(/\s+/g, '-') || '',
       price: price,

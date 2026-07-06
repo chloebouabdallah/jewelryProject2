@@ -307,6 +307,7 @@ async function addToCart() {
   try {
     const cartItem = {
       id: product.value.id,
+      variant_id: product.value.variant_id,
       product_id: product.value.id,
       name: product.value.name,
       price: product.value.price,
@@ -330,11 +331,6 @@ async function addToCart() {
       authStore.openAuthModal
     )
     
-    if (result.success) {
-      if (product.value) {
-        product.value.stock = Math.max(0, product.value.stock - quantity.value)
-      }
-    }
   } catch (error) {
     console.error('❌ Failed to add to cart:', error)
   } finally {
