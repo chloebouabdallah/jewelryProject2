@@ -113,14 +113,16 @@ export const cartAPI = {
 };
 
 // ============================================
-// ORDERS API
+// SHIPPING COUNTRIES API
 // ============================================
-export const orderAPI = {
-  getOrders: () => osimartApi.get('/orders/'),
-  getOrder: (id) => osimartApi.get(`/orders/${id}/`),
-  createOrder: (data) => osimartApi.post('/orders/', data),
+export const shippingAPI = {
+  getCountries: () => osimartApi.get('/shippingcountries/'),
+  getCountry: (id) => osimartApi.get(`/shippingcountries/${id}/`),
 };
 
+// ============================================
+// PAYMENT METHODS API
+// ============================================
 export const paymentAPI = {
   getPaymentMethods: () => osimartApi.get('/payment-methods/'),
   getPaymentMethod: (id) => osimartApi.get(`/payment-methods/${id}/`),
@@ -129,11 +131,37 @@ export const paymentAPI = {
 };
 
 // ============================================
-// SHIPPING COUNTRIES API
+// CHECKOUT API
 // ============================================
-export const shippingAPI = {
-  getCountries: () => osimartApi.get('/shippingcountries/'),
-  getCountry: (id) => osimartApi.get(`/shippingcountries/${id}/`),
+export const checkoutAPI = {
+  // ✅ Create checkout (POST to /checkout/) - This creates order + order summary
+  createCheckout: (data) => {
+    console.log('📦 Creating checkout:', data);
+    return osimartApi.post('/checkout/', data);
+  },
+  
+  // Get checkout status/result (GET to /checkout/{id}/result/)
+  getCheckoutStatus: (id) => {
+    console.log('📦 Getting checkout status:', id);
+    return osimartApi.get(`/checkout/${id}/result/`);
+  },
+};
+
+// ============================================
+// ORDER SUMMARIES API - READ ONLY (GET only)
+// ============================================
+export const orderSummariesAPI = {
+  // Get all order summaries (GET only)
+  getOrderSummaries: () => {
+    console.log('📦 Fetching order summaries...');
+    return osimartApi.get('/order-summaries/');
+  },
+  
+  // Get a specific order summary by ID (GET only)
+  getOrderSummary: (id) => {
+    console.log('📦 Fetching order summary:', id);
+    return osimartApi.get(`/order-summaries/${id}/`);
+  },
 };
 
 // ============================================

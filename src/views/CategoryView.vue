@@ -136,19 +136,23 @@
                     {{ product.displayText || product.metalType || 'N/A' }}
                   </p>
                   
-                  <div class="flex justify-between items-center mt-1.5 md:mt-2">
+                  <div class="flex justify-between items-start mt-1.5 md:mt-2">
                     <div>
                       <span class="text-amber-700 font-bold text-xs sm:text-sm md:text-base">
                         ${{ product.price.toLocaleString() }}
                       </span>
+                      <!-- ✅ Stock status under price -->
                       <p v-if="product.stock === 0" class="text-red-500 text-[8px] sm:text-[10px] font-semibold mt-0.5">
                         Out of Stock
                       </p>
-                      <p v-else-if="product.stock <= 5" class="text-amber-500 text-[8px] sm:text-[10px] mt-0.5">
+                      <p v-else-if="product.stock <= 10" class="text-amber-500 text-[8px] sm:text-[10px] mt-0.5">
                         Only {{ product.stock }} left
                       </p>
+                      <p v-else class="text-green-600 text-[8px] sm:text-[10px] mt-0.5">
+                        In Stock
+                      </p>
                     </div>
-                    <div class="flex gap-1">
+                    <div class="flex gap-1 flex-shrink-0">
                       <button @click.prevent="toggleWishlist(product)" class="w-5 h-5 md:w-7 md:h-7 rounded-full bg-amber-100 transition flex items-center justify-center" :class="isInWishlist(product.id) ? 'text-pink-600 bg-pink-100' : 'text-amber-600 hover:bg-pink-100 hover:text-pink-600'">
                         <i :class="isInWishlist(product.id) ? 'fas fa-heart' : 'far fa-heart'" class="text-[9px] md:text-xs"></i>
                       </button>
