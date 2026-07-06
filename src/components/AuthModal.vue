@@ -1,3 +1,4 @@
+<!-- src/components/AuthModal.vue -->
 <template>
   <div v-if="authStore.showAuthModal" class="fixed inset-0 z-[100] flex items-center justify-center px-4">
     <!-- Backdrop -->
@@ -76,8 +77,14 @@
               placeholder="Enter your password"
             >
           </div>
-          <button type="submit" class="w-full bg-gradient-to-r from-amber-600 to-amber-500 text-white py-2.5 rounded-full font-semibold hover:scale-[1.02] transition">
-            Sign In
+          
+          <button 
+            type="submit" 
+            :disabled="authStore.isLoading"
+            class="w-full bg-gradient-to-r from-amber-600 to-amber-500 text-white py-2.5 rounded-full font-semibold hover:scale-[1.02] transition disabled:opacity-50"
+          >
+            <span v-if="!authStore.isLoading"><i class="fas fa-user mr-2"></i> Sign In</span>
+            <span v-else><i class="fas fa-spinner fa-spin mr-2"></i> Signing In...</span>
           </button>
         </form>
         
@@ -118,11 +125,16 @@
               v-model="signupForm.password" 
               required
               class="w-full px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
-              placeholder="Create a password"
+              placeholder="Create a password (min 6 characters)"
             >
           </div>
-          <button type="submit" class="w-full bg-gradient-to-r from-amber-600 to-amber-500 text-white py-2.5 rounded-full font-semibold hover:scale-[1.02] transition">
-            Create Account
+          <button 
+            type="submit" 
+            :disabled="authStore.isLoading"
+            class="w-full bg-gradient-to-r from-amber-600 to-amber-500 text-white py-2.5 rounded-full font-semibold hover:scale-[1.02] transition disabled:opacity-50"
+          >
+            <span v-if="!authStore.isLoading">Create Account</span>
+            <span v-else><i class="fas fa-spinner fa-spin mr-2"></i> Creating...</span>
           </button>
         </form>
         
@@ -134,7 +146,9 @@
       </div>
       
       <!-- Error Message -->
-      <p v-if="errorMessage" class="text-red-500 text-sm text-center mt-4">{{ errorMessage }}</p>
+      <p v-if="authStore.error" class="text-red-500 text-sm text-center mt-4 p-2 bg-red-50 rounded-lg">
+        <i class="fas fa-exclamation-circle mr-1"></i> {{ authStore.error }}
+      </p>
     </div>
   </div>
 </template>
@@ -145,7 +159,6 @@ import { useAuthStore } from '@/stores/auth'
 
 const emit = defineEmits(['login-success'])
 const authStore = useAuthStore()
-const errorMessage = ref('')
 
 const loginForm = ref({
   email: '',
@@ -158,7 +171,6 @@ const signupForm = ref({
   password: ''
 })
 
-// Social Login Handlers
 const handleGoogleLogin = () => {
   const googleUser = {
     name: 'Google User',
@@ -182,28 +194,38 @@ const handleFacebookLogin = () => {
 }
 
 const handleLogin = async () => {
-  errorMessage.value = ''
   try {
-    await authStore.login(loginForm.value.email, loginForm.value.password)
-    authStore.saveToLocalStorage()
-    loginForm.value = { email: '', password: '' }
-    authStore.closeAuthModal()
-    emit('login-success')
+    // No device-name or device-id passed
+    const result = await authStore.login(
+      loginForm.value.email,
+      loginForm.value.password
+    )
+    
+    if (result && result.success) {
+      loginForm.value = { email: '', password: '' }
+      authStore.closeAuthModal()
+      emit('login-success')
+    }
   } catch (error) {
-    errorMessage.value = error
+    console.error('Login error:', error)
   }
 }
 
 const handleSignup = async () => {
-  errorMessage.value = ''
   try {
-    await authStore.signup(signupForm.value.name, signupForm.value.email, signupForm.value.password)
-    authStore.saveToLocalStorage()
-    signupForm.value = { name: '', email: '', password: '' }
-    authStore.closeAuthModal()
-    emit('login-success')
+    const result = await authStore.signup(
+      signupForm.value.name,
+      signupForm.value.email,
+      signupForm.value.password
+    )
+    
+    if (result && result.success) {
+      signupForm.value = { name: '', email: '', password: '' }
+      authStore.closeAuthModal()
+      emit('login-success')
+    }
   } catch (error) {
-    errorMessage.value = error
+    console.error('Signup error:', error)
   }
 }
 </script>

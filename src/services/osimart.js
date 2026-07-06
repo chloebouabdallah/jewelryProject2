@@ -1,14 +1,16 @@
-// src/services/osimart.js
+// src/services/osimart.js - ADD authAxios instance
+
 import axios from 'axios';
 
 // ============================================
 // API CONFIGURATION
 // ============================================
 const API_BASE_URL = 'https://api.osimart.com/store/apis';
+const ROOT_API_BASE_URL = 'https://api.osimart.com'; // ← NEW for auth
 const STORE_ID = '92ea209b-b32c-448e-85af-7296eb8eea00';
 
 // ============================================
-// AXIOS INSTANCE
+// AXIOS INSTANCE - For store APIs (YOUR ORIGINAL)
 // ============================================
 export const osimartApi = axios.create({
   baseURL: API_BASE_URL,
@@ -27,6 +29,17 @@ osimartApi.interceptors.request.use((config) => {
     config.params.store = STORE_ID;
   }
   return config;
+});
+
+// ============================================
+// ✅ NEW: AXIOS INSTANCE FOR AUTH - Uses root URL
+// ============================================
+export const authAxios = axios.create({
+  baseURL: ROOT_API_BASE_URL, // ← Uses https://api.osimart.com (NOT /store/apis/)
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  withCredentials: true,
 });
 
 // ============================================
@@ -134,13 +147,10 @@ export const paymentAPI = {
 // CHECKOUT API
 // ============================================
 export const checkoutAPI = {
-  // ✅ Create checkout (POST to /checkout/) - This creates order + order summary
   createCheckout: (data) => {
     console.log('📦 Creating checkout:', data);
     return osimartApi.post('/checkout/', data);
   },
-  
-  // Get checkout status/result (GET to /checkout/{id}/result/)
   getCheckoutStatus: (id) => {
     console.log('📦 Getting checkout status:', id);
     return osimartApi.get(`/checkout/${id}/result/`);
@@ -148,16 +158,13 @@ export const checkoutAPI = {
 };
 
 // ============================================
-// ORDER SUMMARIES API - READ ONLY (GET only)
+// ORDER SUMMARIES API
 // ============================================
 export const orderSummariesAPI = {
-  // Get all order summaries (GET only)
   getOrderSummaries: () => {
     console.log('📦 Fetching order summaries...');
     return osimartApi.get('/order-summaries/');
   },
-  
-  // Get a specific order summary by ID (GET only)
   getOrderSummary: (id) => {
     console.log('📦 Fetching order summary:', id);
     return osimartApi.get(`/order-summaries/${id}/`);
@@ -165,13 +172,34 @@ export const orderSummariesAPI = {
 };
 
 // ============================================
-// AUTH API
+// ✅ AUTH API - NOW USES authAxios (root URL)
 // ============================================
 export const authAPI = {
-  login: (data) => osimartApi.post('/auth/login/', data),
-  register: (data) => osimartApi.post('/auth/register/', data),
-  logout: () => osimartApi.post('/auth/logout/'),
-  getProfile: () => osimartApi.get('/auth/profile/'),
+  login: (data) => {
+    console.log('🔐 Login request to Osimart:', data);
+    // authAxios uses https://api.osimart.com + /auth/login/
+    return authAxios.post('/auth/login/', data, {
+      params: { store: STORE_ID }
+    });
+  },
+  register: (data) => {
+    console.log('📝 Register request to Osimart:', data);
+    return authAxios.post('/auth/register/', data, {
+      params: { store: STORE_ID }
+    });
+  },
+  logout: () => {
+    console.log('🚪 Logout request to Osimart');
+    return authAxios.post('/auth/logout/', null, {
+      params: { store: STORE_ID }
+    });
+  },
+  getProfile: () => {
+    console.log('👤 Get profile request to Osimart');
+    return authAxios.get('/auth/profile/', {
+      params: { store: STORE_ID }
+    });
+  },
 };
 
 // ============================================

@@ -1,4 +1,5 @@
-// src/router/index.js
+// src/router/index.js - Remove admin route
+
 import { createRouter, createWebHistory } from 'vue-router'
 
 const routes = [
@@ -111,19 +112,15 @@ const router = createRouter({
   history: createWebHistory(),
   routes,
   scrollBehavior(to, from, savedPosition) {
-    // ✅ Always scroll to top on route change
     return { 
       top: 0, 
       behavior: 'smooth',
-      // ✅ Force immediate scroll
       el: 'body'
     }
   },
 })
 
-// ✅ Additional: Force scroll to top on every navigation
 router.beforeEach((to, from, next) => {
-  // Scroll to top before navigation
   window.scrollTo(0, 0)
   next()
 })

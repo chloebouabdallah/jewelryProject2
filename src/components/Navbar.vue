@@ -1,3 +1,5 @@
+<!-- src/components/Navbar.vue - Remove admin references -->
+
 <template>
   <nav ref="navbarRef" class="fixed w-full z-50 transition-all duration-300 backdrop-blur-md shadow-sm" :class="navbarClass">
     <div class="max-w-7xl mx-auto px-4 md:px-8 py-3 md:py-4 flex justify-between items-center">
@@ -51,7 +53,6 @@
                 <p class="text-[10px] text-amber-500 mt-0.5">Logged in with {{ authStore.currentUser?.provider || 'email' }}</p>
               </div>
               
-              <!-- Settings Link -->
               <router-link to="/settings" class="block w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-amber-50" @click="closeUserMenu">
                 <i class="fas fa-cog mr-2"></i> Settings
               </router-link>
@@ -83,7 +84,7 @@
       </div>
     </div>
     
-    <!-- Mobile Menu - Navigation Links Only -->
+    <!-- Mobile Menu -->
     <Transition name="slide-down">
       <div v-if="mobileMenuOpen" class="md:hidden bg-white/95 backdrop-blur-lg border-t border-amber-100 py-3 px-5 flex flex-col gap-2 text-[#3e2c24] font-medium shadow-lg">
         <router-link 
@@ -96,7 +97,6 @@
         >
           {{ link.name }}
         </router-link>
-        <!-- ✅ REMOVED login/signup and settings from mobile menu -->
       </div>
     </Transition>
   </nav>
@@ -172,22 +172,6 @@ const handleSignup = () => {
 const handleLogout = () => {
   authStore.logout()
   userMenuOpen.value = false
-}
-
-// Mobile handlers - just close the menu, auth is handled by the user icon
-const handleLoginMobile = () => {
-  authStore.openAuthModal('login')
-  mobileMenuOpen.value = false
-}
-
-const handleSignupMobile = () => {
-  authStore.openAuthModal('signup')
-  mobileMenuOpen.value = false
-}
-
-const handleLogoutMobile = () => {
-  authStore.logout()
-  mobileMenuOpen.value = false
 }
 
 const goToCart = () => {
