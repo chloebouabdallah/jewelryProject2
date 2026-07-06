@@ -152,6 +152,7 @@
                   class="w-4 h-4 text-amber-600 flex-shrink-0"
                 >
                 <div class="flex items-center gap-3 flex-1">
+                  <!-- Payment Method Icon -->
                   <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
                     <i :class="getPaymentIcon(method)" class="text-amber-600 text-lg"></i>
                   </div>
@@ -172,6 +173,7 @@
               </label>
             </div>
             
+            <!-- Selected Payment Method Details -->
             <div v-if="selectedPaymentMethod" class="mt-6 pt-4 border-t border-amber-100">
               <div class="bg-amber-50 p-4 rounded-lg">
                 <div class="flex items-start gap-3">
@@ -201,6 +203,7 @@
           <div class="bg-white rounded-2xl shadow-md p-6 sticky top-32">
             <h3 class="text-xl font-playfair font-semibold text-stone-800 mb-4">Order Summary</h3>
             
+            <!-- Order Items Preview -->
             <div class="max-h-60 overflow-y-auto mb-4 space-y-2 border-b border-amber-100 pb-4">
               <div v-for="item in cartStore.items" :key="item.id" class="flex justify-between text-sm">
                 <span class="text-stone-600">{{ item.name }} x{{ item.quantity }}</span>
@@ -254,21 +257,18 @@
   </main>
 </template>
 
-<!-- src/views/CheckoutView.vue -->
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
-import { useOsimartProductsStore } from '@/stores/osimartProducts'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
-import { shippingAPI, paymentAPI, checkoutAPI, orderSummariesAPI } from '@/services/osimart'
+import { shippingAPI, paymentAPI } from '@/services/osimart'
 import emailjs from '@emailjs/browser'
 
 const router = useRouter()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
-const productStore = useOsimartProductsStore()
 useScrollAnimation()
 
 // EmailJS credentials
@@ -294,6 +294,12 @@ const shippingInfo = ref({
   phone: ''
 })
 
+const cardInfo = ref({
+  number: '',
+  expiry: '',
+  cvv: ''
+})
+
 // Payment method icon mapping
 const getPaymentIcon = (method) => {
   const iconMap = {
@@ -308,6 +314,7 @@ const getPaymentIcon = (method) => {
     'cash': 'fas fa-money-bill',
     'crypto': 'fab fa-bitcoin',
   }
+  
   const key = (method.code || method.name || '').toLowerCase().replace(/\s+/g, '_')
   return iconMap[key] || method.icon || 'fas fa-credit-card'
 }
@@ -335,10 +342,12 @@ const selectedPaymentMethod = computed(() => {
 const calculateTotal = () => {
   let total = cartStore.total
   
+  // Add shipping fee
   if (selectedCountry.value?.shipment_price) {
     total += selectedCountry.value.shipment_price
   }
   
+  // Add payment method fee
   if (selectedPaymentMethod.value?.fee) {
     total += selectedPaymentMethod.value.fee
   }
@@ -348,6 +357,7 @@ const calculateTotal = () => {
 
 // Handle country change
 const onCountryChange = () => {
+  // If country has a default payment method, auto-select it
   if (selectedCountry.value?.default_payment_method_id) {
     const defaultMethod = paymentMethods.value.find(m => m.id === selectedCountry.value.default_payment_method_id)
     if (defaultMethod) {
@@ -364,6 +374,8 @@ const loadCheckoutData = async () => {
   try {
     // Fetch countries
     const countriesResponse = await shippingAPI.getCountries()
+    console.log('✅ Countries fetched:', countriesResponse.data)
+    
     let countryData = []
     if (countriesResponse.data && countriesResponse.data.results) {
       countryData = countriesResponse.data.results
@@ -387,6 +399,8 @@ const loadCheckoutData = async () => {
     
     // Fetch payment methods
     const paymentResponse = await paymentAPI.getAvailablePaymentMethods()
+    console.log('✅ Payment methods fetched:', paymentResponse.data)
+    
     let paymentData = []
     if (paymentResponse.data && paymentResponse.data.results) {
       paymentData = paymentResponse.data.results
@@ -415,6 +429,7 @@ const loadCheckoutData = async () => {
     })
     
     console.log('✅ Payment methods loaded:', paymentMethods.value.length)
+    console.log('📋 Payment methods:', paymentMethods.value.map(m => ({ name: m.name, display_name: m.display_name, is_cod: m.is_cod })))
     
     // Auto-select default payment method
     const defaultMethod = paymentMethods.value.find(m => m.is_default)
@@ -439,7 +454,7 @@ const loadCheckoutData = async () => {
 }
 
 // Send order email
-const sendOrderEmail = async (orderData) => {
+const sendOrderEmail = async () => {
   const orderItems = cartStore.items.map(item => 
     `${item.name} x${item.quantity} - $${(item.price * item.quantity).toLocaleString()}`
   ).join('\n')
@@ -447,13 +462,11 @@ const sendOrderEmail = async (orderData) => {
   const templateParams = {
     to_email: 'chloebouabdallah1@gmail.com',
     customer_email: shippingInfo.value.email,
-    subject: `New Order #${orderData?.id || 'N/A'} from ${shippingInfo.value.firstName} ${shippingInfo.value.lastName}`,
+    subject: `New Order from ${shippingInfo.value.firstName} ${shippingInfo.value.lastName}`,
     message: `
 =====================================
 NEW ORDER RECEIVED
 =====================================
-Order ID: ${orderData?.id || 'N/A'}
-Order Date: ${orderData?.created_at ? new Date(orderData.created_at).toLocaleString() : new Date().toLocaleString()}
 
 CUSTOMER INFORMATION:
 -------------------
@@ -483,8 +496,6 @@ Shipping: $${selectedCountry.value?.shipment_price ? selectedCountry.value.shipm
 Tax (8%): $${cartStore.tax.toFixed(2)}
 ${selectedPaymentMethod.value?.fee ? `Payment Fee: $${selectedPaymentMethod.value.fee.toFixed(2)}\n` : ''}
 TOTAL: $${calculateTotal().toFixed(2)}
-
-Status: ${orderData?.status || 'Processing'}
 
 =====================================
 Thank you for shopping at SOUTOU!
@@ -525,138 +536,27 @@ const placeOrder = async () => {
     return
   }
   
-  // Check if cart has items
-  if (cartStore.items.length === 0) {
-    alert('Your cart is empty. Please add items before checking out.')
-    return
-  }
-  
   isProcessing.value = true
   
   try {
-    // Get the selected country
-    const country = countries.value.find(c => c.id === shippingInfo.value.countryId)
+    const emailSent = await sendOrderEmail()
     
-    // ✅ Prepare checkout data for /checkout/ endpoint
-    const checkoutData = {
-      customer: {
-        first_name: shippingInfo.value.firstName,
-        last_name: shippingInfo.value.lastName,
-        email: shippingInfo.value.email,
-        phone: shippingInfo.value.phone || '',
-      },
-      shipping_address: {
-        address: shippingInfo.value.address,
-        city: shippingInfo.value.city,
-        postal_code: shippingInfo.value.postalCode,
-        country_id: shippingInfo.value.countryId,
-        country_name: country?.country_name || '',
-      },
-      items: cartStore.items.map(item => ({
-        product_id: item.product_id || item.id,
-        variant_id: item.variant_id || null,
-        quantity: item.quantity,
-        price: item.price,
-        name: item.name,
-        image: item.image || '',
-        goldWeight: item.goldWeight || 0,
-        silverWeight: item.silverWeight || 0,
-        metalType: item.metalType || 'none',
-        displayText: item.displayText || '',
-        isCustom: item.isCustom || false,
-        description: item.description || '',
-        metal: item.metal || '',
-        setting: item.setting || '',
-        shape: item.shape || '',
-        carat: item.carat || '',
-        band: item.band || '',
-        accent: item.accent || '',
-      })),
-      payment_method_id: paymentMethod.value,
-      total: calculateTotal(),
-      subtotal: cartStore.subtotal,
-      tax: cartStore.tax,
-      shipping_cost: selectedCountry.value?.shipment_price || 0,
-      currency: 'USD',
-    }
-    
-    console.log('📦 Cart items count:', cartStore.items.length)
-    console.log('📦 Sending checkout to /checkout/:', JSON.stringify(checkoutData, null, 2))
-    
-    // ✅ Create checkout using checkoutAPI (POST to /checkout/)
-    const checkoutResponse = await checkoutAPI.createCheckout(checkoutData)
-    console.log('✅ Checkout created:', checkoutResponse.data)
-    
-    const checkoutResult = checkoutResponse.data
-    const orderId = checkoutResult.id || checkoutResult.order_id || 'N/A'
-    
-    // ✅ Fetch the order summary (GET only - now it exists since checkout was created)
-    try {
-      console.log('📦 Fetching order summary for order:', orderId)
-      const summaryResponse = await orderSummariesAPI.getOrderSummary(orderId)
-      console.log('✅ Order summary fetched:', summaryResponse.data)
-    } catch (summaryErr) {
-      console.warn('⚠️ Could not fetch order summary:', summaryErr.message)
-    }
-    
-    // Update stock in local product store
-    for (const item of cartStore.items) {
-      const productId = item.product_id || item.id
-      const currentStock = productStore.stockCache?.[productId] ?? item.stock ?? 0
-      const newStock = Math.max(0, currentStock - item.quantity)
+    if (emailSent) {
+      cartStore.clearCart()
       
-      if (productStore.stockCache) {
-        productStore.stockCache[productId] = newStock
-      }
+      const isCOD = selectedPaymentMethod.value?.is_cod
+      const successMessage = isCOD 
+        ? '🎉 Thank you for your order! You will pay cash upon delivery. A confirmation email has been sent.'
+        : '🎉 Thank you for your order! Your jewelry will be shipped soon. A confirmation email has been sent.'
       
-      const productIndex = productStore.products.findIndex(p => p.id === productId)
-      if (productIndex !== -1) {
-        productStore.products[productIndex] = {
-          ...productStore.products[productIndex],
-          stock: newStock
-        }
-      }
-      
-      console.log(`📦 Updated stock for ${item.name}: ${currentStock} → ${newStock}`)
+      alert(successMessage)
+      router.push('/')
+    } else {
+      alert('There was an issue processing your order. Please try again or contact support.')
     }
-    
-    // Send email notification
-    await sendOrderEmail(checkoutResult)
-    
-    // Clear cart
-    await cartStore.clearCart()
-    
-    // Show success message
-    const isCOD = selectedPaymentMethod.value?.is_cod
-    const successMessage = isCOD 
-      ? `🎉 Order #${orderId} placed successfully! You will pay cash upon delivery. A confirmation email has been sent.`
-      : `🎉 Order #${orderId} placed successfully! Your jewelry will be shipped soon. A confirmation email has been sent.`
-    
-    alert(successMessage)
-    router.push('/')
-    
-  } catch (err) {
-    console.error('❌ Order failed:', err)
-    console.error('Response data:', err.response?.data)
-    console.error('Response status:', err.response?.status)
-    
-    let errorMessage = 'There was an error processing your order. Please try again.'
-    if (err.response?.data) {
-      if (typeof err.response.data === 'string') {
-        errorMessage = err.response.data
-      } else if (err.response.data.message) {
-        errorMessage = err.response.data.message
-      } else if (err.response.data.detail) {
-        errorMessage = err.response.data.detail
-      } else if (err.response.data.errors) {
-        const errors = Object.values(err.response.data.errors).flat().join(', ')
-        errorMessage = `Validation errors: ${errors}`
-      } else {
-        errorMessage = JSON.stringify(err.response.data)
-      }
-    }
-    
-    alert(`Order failed: ${errorMessage}`)
+  } catch (error) {
+    console.error('Order failed:', error)
+    alert('There was an error processing your order. Please try again.')
   } finally {
     isProcessing.value = false
   }
