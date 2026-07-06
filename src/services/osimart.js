@@ -121,6 +121,21 @@ export const orderAPI = {
   createOrder: (data) => osimartApi.post('/orders/', data),
 };
 
+export const paymentAPI = {
+  getPaymentMethods: () => osimartApi.get('/payment-methods/'),
+  getPaymentMethod: (id) => osimartApi.get(`/payment-methods/${id}/`),
+  getAvailablePaymentMethods: () => osimartApi.get('/available-payment-methods/'),
+  getAvailablePaymentMethod: (id) => osimartApi.get(`/available-payment-methods/${id}/`),
+};
+
+// ============================================
+// SHIPPING COUNTRIES API
+// ============================================
+export const shippingAPI = {
+  getCountries: () => osimartApi.get('/shippingcountries/'),
+  getCountry: (id) => osimartApi.get(`/shippingcountries/${id}/`),
+};
+
 // ============================================
 // AUTH API
 // ============================================
