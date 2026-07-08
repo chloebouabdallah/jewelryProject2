@@ -69,7 +69,7 @@
 
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
-import { authAPI } from '@/services/osimart'
+import { authAPI, cleanEmail } from '@/services/osimart'
 
 const props = defineProps({
   email: { type: String, required: true },
@@ -89,7 +89,7 @@ const codeInputs = ref([])
 const code = ref(['', '', '', ''])
 
 const displayEmail = computed(() => {
-  return props.email.replace(/^mystore1__/, '')
+  return cleanEmail(props.email)
 })
 
 const isCodeComplete = computed(() => code.value.every(digit => digit !== ''))

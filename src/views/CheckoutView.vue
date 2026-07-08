@@ -263,18 +263,13 @@ import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
-import { shippingAPI, paymentAPI } from '@/services/osimart'
+import { shippingAPI, paymentAPI, checkoutAPI } from '@/services/osimart'
 import emailjs from '@emailjs/browser'
 
 const router = useRouter()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
 useScrollAnimation()
-
-// EmailJS credentials
-const EMAILJS_PUBLIC_KEY = 'z5w_dazQn07KNShHA'
-const EMAILJS_SERVICE_ID = 'service_823cc9l'
-const EMAILJS_TEMPLATE_ID = 'template_ilcmsch'
 
 const isProcessing = ref(false)
 const isLoadingData = ref(false)
@@ -453,7 +448,7 @@ const loadCheckoutData = async () => {
   }
 }
 
-// Send order email
+// Send order notification email to store owner
 const sendOrderEmail = async () => {
   const orderItems = cartStore.items.map(item => 
     `${item.name} x${item.quantity} - $${(item.price * item.quantity).toLocaleString()}`
@@ -505,11 +500,81 @@ Thank you for shopping at SOUTOU!
   }
 
   try {
-    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams, EMAILJS_PUBLIC_KEY)
+    await emailjs.send(
+      import.meta.env.VITE_EMAILJS_SERVICE_ID,
+      import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+      templateParams,
+      import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+    )
     console.log('Order email sent successfully')
     return true
   } catch (error) {
     console.error('Failed to send order email:', error)
+    return false
+  }
+}
+
+// Send order confirmation email to customer
+const sendCustomerConfirmationEmail = async () => {
+  const orderItems = cartStore.items.map(item => 
+    `${item.name} x${item.quantity} - $${(item.price * item.quantity).toLocaleString()}`
+  ).join('\n')
+
+  const templateParams = {
+    to_email: shippingInfo.value.email,
+    customer_name: `${shippingInfo.value.firstName} ${shippingInfo.value.lastName}`,
+    subject: 'Your SOUTOU Order Confirmation',
+    message: `
+=====================================
+ORDER CONFIRMATION - SOUTOU
+=====================================
+
+Dear ${shippingInfo.value.firstName},
+
+Thank you for your order! We're preparing your beautiful jewelry.
+
+ORDER DETAILS:
+-------------
+${orderItems}
+
+SHIPPING ADDRESS:
+----------------
+${shippingInfo.value.address}
+${shippingInfo.value.city}, ${shippingInfo.value.postalCode}
+${selectedCountry.value?.country_name || shippingInfo.value.countryId}
+
+PAYMENT METHOD:
+--------------
+${selectedPaymentMethod.value?.display_name || selectedPaymentMethod.value?.name || paymentMethod.value}
+
+ORDER SUMMARY:
+-------------
+Subtotal: $${cartStore.subtotal.toLocaleString()}
+Shipping: $${selectedCountry.value?.shipment_price ? selectedCountry.value.shipment_price.toFixed(2) : 'Free'}
+Tax (8%): $${cartStore.tax.toFixed(2)}
+${selectedPaymentMethod.value?.fee ? `Payment Fee: $${selectedPaymentMethod.value.fee.toFixed(2)}\n` : ''}
+TOTAL: $${calculateTotal().toFixed(2)}
+
+Delivery: ${selectedCountry.value?.country_name ? '3-5 business days' : 'varies by location'}
+
+=====================================
+We'll notify you when your order ships!
+=====================================
+    `,
+    reply_to: 'chloebouabdallah1@gmail.com'
+  }
+
+  try {
+    await emailjs.send(
+      import.meta.env.VITE_EMAILJS_SERVICE_ID,
+      import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+      templateParams,
+      import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+    )
+    console.log('Customer confirmation email sent')
+    return true
+  } catch (error) {
+    console.error('Failed to send customer confirmation email:', error)
     return false
   }
 }
@@ -539,24 +604,50 @@ const placeOrder = async () => {
   isProcessing.value = true
   
   try {
-    const emailSent = await sendOrderEmail()
-    
-    if (emailSent) {
-      cartStore.clearCart()
-      
-      const isCOD = selectedPaymentMethod.value?.is_cod
-      const successMessage = isCOD 
-        ? '🎉 Thank you for your order! You will pay cash upon delivery. A confirmation email has been sent.'
-        : '🎉 Thank you for your order! Your jewelry will be shipped soon. A confirmation email has been sent.'
-      
-      alert(successMessage)
-      router.push('/')
-    } else {
-      alert('There was an issue processing your order. Please try again or contact support.')
+    // Build order data for Osimart API
+    const orderData = {
+      shipping_first_name: shippingInfo.value.firstName,
+      shipping_last_name: shippingInfo.value.lastName,
+      shipping_email: shippingInfo.value.email,
+      shipping_address: shippingInfo.value.address,
+      shipping_city: shippingInfo.value.city,
+      shipping_postal_code: shippingInfo.value.postalCode,
+      shipping_country_id: shippingInfo.value.countryId,
+      shipping_phone: shippingInfo.value.phone || '',
+      payment_method_id: paymentMethod.value,
     }
+    
+    // Call Osimart checkout API
+    console.log('📦 Submitting order to Osimart API...')
+    const checkoutResponse = await checkoutAPI.createCheckout(orderData)
+    console.log('✅ Checkout response:', checkoutResponse.data)
+    
+    // Send notification email to store owner
+    const emailSent = await sendOrderEmail()
+    if (emailSent) {
+      console.log('✅ Store owner notified')
+    }
+    
+    // Send confirmation email to customer
+    const customerEmailSent = await sendCustomerConfirmationEmail()
+    if (customerEmailSent) {
+      console.log('✅ Customer confirmation sent')
+    }
+    
+    // Clear cart after successful order
+    await cartStore.clearCart()
+    
+    const isCOD = selectedPaymentMethod.value?.is_cod
+    const successMessage = isCOD 
+      ? '🎉 Thank you for your order! You will pay cash upon delivery. A confirmation email has been sent.'
+      : '🎉 Thank you for your order! Your jewelry will be shipped soon. A confirmation email has been sent.'
+    
+    alert(successMessage)
+    router.push('/')
   } catch (error) {
     console.error('Order failed:', error)
-    alert('There was an error processing your order. Please try again.')
+    const errorMsg = error.response?.data?.message || error.message || 'There was an error processing your order. Please try again.'
+    alert(errorMsg)
   } finally {
     isProcessing.value = false
   }

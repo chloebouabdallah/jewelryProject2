@@ -236,4 +236,19 @@ export const authAPI = {
   },
 };
 
+// ============================================
+// EMAIL PREFIX - Used for Osimart API compatibility
+// ============================================
+export const EMAIL_PREFIX = 'mystore1__';
+
+export function cleanEmail(email) {
+  if (!email) return '';
+  return email.replace(new RegExp(`^${EMAIL_PREFIX}`), '');
+}
+
+export function prefixEmail(email) {
+  if (!email) return '';
+  return email.startsWith(EMAIL_PREFIX) ? email : `${EMAIL_PREFIX}${email}`;
+}
+
 export default osimartApi;

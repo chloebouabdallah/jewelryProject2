@@ -237,11 +237,9 @@ const badges = [
 const pageTitle = computed(() => {
   const slug = route.params.category
   const category = displayCategories.value.find(c => c.slug === slug)
-  return category ? category.name : slug?.charAt(0).toUpperCase() + slug?.slice(1) || 'Products'
-})
-
-const mappedCategories = computed(() => {
-  return categoryStore.mapCategories(categoryStore.categories)
+  if (category) return category.name
+  if (!slug) return 'Products'
+  return slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
 })
 
 const allProducts = computed(() => {
@@ -380,9 +378,9 @@ watch(() => route.params.category, (newSlug) => {
   }
 }, { immediate: true })
 
-watch(mappedCategories, (newCategories) => {
+watch(() => categoryStore.categories, (newCategories) => {
   if (newCategories && newCategories.length > 0) {
-    displayCategories.value = newCategories
+    displayCategories.value = categoryStore.mapCategories(newCategories)
     const slug = route.params.category
     if (slug) {
       filters.value.category = slug

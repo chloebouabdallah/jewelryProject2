@@ -91,6 +91,19 @@ const routes = [
     path: '/checkout',
     name: 'Checkout',
     component: () => import('@/views/CheckoutView.vue'),
+    beforeEnter: (to, from, next) => {
+      const authData = localStorage.getItem('soutou_auth')
+      if (authData) {
+        try {
+          const parsed = JSON.parse(authData)
+          if (parsed.isAuthenticated && parsed.token) {
+            next()
+            return
+          }
+        } catch (e) {}
+      }
+      next({ path: '/cart' })
+    },
   },
   {
     path: '/customize',

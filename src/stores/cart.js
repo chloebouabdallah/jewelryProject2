@@ -397,9 +397,6 @@ async function removeItem(productId) {
           await syncWithApi();
         } catch (err) {
           console.warn('⚠️ Failed to clear cart via API:', err.message);
-          if (err.response?.status === 404) {
-            useApi.value = false;
-          }
         }
       }
 
@@ -437,12 +434,42 @@ async function removeItem(productId) {
     console.log(`👤 SET USER: ${email || 'guest'}`);
     currentUserEmail.value = email;
     if (email) {
-      fetchCart();
+      const guestCart = loadGuestCart();
+      fetchCart().then(() => {
+        if (guestCart.length > 0) {
+          migrateGuestCartItems(guestCart);
+        }
+      });
     } else {
       items.value = [];
       totalPrice.value = 0;
       saveToLocalStorage();
     }
+  }
+
+  function loadGuestCart() {
+    try {
+      const saved = localStorage.getItem('soutouCart_guest');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async function migrateGuestCartItems(guestItems) {
+    for (const guestItem of guestItems) {
+      try {
+        const itemId = guestItem.variant_id || guestItem.id;
+        if (itemId) {
+          await cartAPI.addItem(itemId, guestItem.quantity || 1);
+        }
+      } catch (err) {
+        console.warn('⚠️ Failed to migrate guest item:', guestItem.name, err.message);
+      }
+    }
+    localStorage.removeItem('soutouCart_guest');
+    console.log('✅ Guest cart migrated:', guestItems.length, 'items');
+    await syncWithApi();
   }
 
   async function addPendingAfterLogin() {

@@ -2,7 +2,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useCartStore } from './cart'
-import { authAPI } from '@/services/osimart'
+import { authAPI, cleanEmail } from '@/services/osimart'
 
 export const useAuthStore = defineStore('auth', () => {
   // State
@@ -36,9 +36,14 @@ export const useAuthStore = defineStore('auth', () => {
       const saved = localStorage.getItem('soutou_auth')
       if (saved) {
         const data = JSON.parse(saved)
+        if (data.user) {
+          data.user.name = cleanEmail(data.user.name || '')
+          data.user.email = cleanEmail(data.user.email || '')
+        }
         user.value = data.user || null
         isAuthenticated.value = data.isAuthenticated || false
         token.value = data.token || null
+        saveToLocalStorage()
         return true
       }
     } catch (e) {
@@ -59,7 +64,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function getUserDisplayName() {
-    return localStorage.getItem('soutou_user_display_name') || ''
+    return cleanEmail(localStorage.getItem('soutou_user_display_name') || '')
   }
 
   // ============================================
@@ -106,7 +111,7 @@ export const useAuthStore = defineStore('auth', () => {
 
       // ✅ The API returns email with prefix
       const rawEmail = userData.email || email
-      const displayEmail = rawEmail.replace(/^mystore1__/, '')
+      const displayEmail = cleanEmail(rawEmail)
 
       // ✅ Get display name - priority order:
       // 1. From stored name (set during signup)
@@ -127,14 +132,14 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       user.value = {
+        ...userData,
         id: userData.id || userData.user_id || 'user_' + Date.now(),
         email: displayEmail,
-        rawEmail: rawEmail,
-        name: displayName, // ✅ User's actual name
+        rawEmail,
+        name: displayName,
         firstName: userData.first_name || '',
         lastName: userData.last_name || '',
         provider: userData.provider || 'email',
-        ...userData
       }
 
       isAuthenticated.value = true
@@ -188,7 +193,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const STORE_ID = '92ea209b-b32c-448e-85af-7296eb8eea00'
 
-      const cleanEmailInput = email.replace(/^mystore1__/, '')
+      const cleanEmailInput = cleanEmail(email)
 
       const signupData = {
         register_as: 'customer',
@@ -206,7 +211,7 @@ export const useAuthStore = defineStore('auth', () => {
       console.log('✅ Signup response:', response.data)
 
       const rawEmailFromAPI = response.data.email || cleanEmailInput
-      const displayEmail = rawEmailFromAPI.replace(/^mystore1__/, '')
+      const displayEmail = cleanEmail(rawEmailFromAPI)
 
       // ✅ Save the user's full name for future logins
       const fullName = `${firstName} ${lastName}`
@@ -276,18 +281,18 @@ export const useAuthStore = defineStore('auth', () => {
     saveUserDisplayName(displayName)
 
     const rawEmail = userData.email || ''
-    const displayEmail = rawEmail.replace(/^mystore1__/, '')
+    const displayEmail = cleanEmail(rawEmail)
 
     user.value = {
+      ...userData,
       id: userData.id || userData.user_id || 'social_' + Date.now(),
       name: displayName,
       email: displayEmail,
-      rawEmail: rawEmail,
+      rawEmail,
       picture: userData.picture || '',
       provider: userData.provider || 'google',
       deviceName: userData.deviceName || 'Desktop',
       deviceId: userData.deviceId || 'unknown',
-      ...userData
     }
 
     isAuthenticated.value = true
@@ -328,16 +333,29 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // ============================================
-  // CHECK AUTH
+  // CHECK AUTH - validates stored token with API
   // ============================================
-  function checkAuth() {
+  async function checkAuth() {
     const loaded = loadFromLocalStorage()
 
-    if (loaded && isAuthenticated.value && user.value) {
-      console.log('✅ Auth restored:', user.value.email)
-      const cartStore = useCartStore()
-      cartStore.setUser(user.value.email)
-      return true
+    if (loaded && isAuthenticated.value && user.value && token.value) {
+      try {
+        const response = await authAPI.getProfile()
+        if (response.data) {
+          console.log('✅ Auth token validated:', user.value.email)
+          const cartStore = useCartStore()
+          cartStore.setUser(user.value.email)
+          return true
+        }
+      } catch (err) {
+        console.warn('⚠️ Auth token invalid or expired, logging out:', err.message)
+        user.value = null
+        isAuthenticated.value = false
+        token.value = null
+        clearLocalStorage()
+        console.log('👤 Session expired, guest mode')
+        return false
+      }
     } else {
       console.log('👤 No auth found, guest mode')
       return false

@@ -1121,18 +1121,15 @@ async function sendMessage() {
 
   scrollToBottom()
 
-  // Minimal delay for "Premium" feel
-  setTimeout(async () => {
-    const response = await fetchAIResponse(userMessage)
+  const response = await fetchAIResponse(userMessage)
 
-    // Logic to detect if a specific product is mentioned in the prompt OR the AI's response
-    const detectedProduct = findProduct(userMessage) ||
-      findProduct(response) ||
-      (lastAskedContext === 'product_details' ? findProduct(lastProductMention) : null)
+  // Logic to detect if a specific product is mentioned in the prompt OR the AI's response
+  const detectedProduct = findProduct(userMessage) ||
+    findProduct(response) ||
+    (lastAskedContext === 'product_details' ? findProduct(lastProductMention) : null)
 
-    addMessage('bot', response, detectedProduct)
-    isTyping.value = false
-  }, 800)
+  addMessage('bot', response, detectedProduct)
+  isTyping.value = false
 }
 
 function sendQuickReply(reply) {

@@ -37,7 +37,7 @@
         <div class="lg:w-1/2 fade-on-scroll fade-left">
           <div class="sticky top-28 md:top-32">
             <div class="relative rounded-2xl md:rounded-3xl overflow-hidden bg-gradient-to-br from-amber-100 to-amber-50 shadow-2xl group">
-              <img :src="currentImage || product.image" :alt="product.name" class="w-full h-auto object-cover transition-all duration-700 group-hover:scale-105">
+              <img :src="currentImage || product.image" :alt="product.name" class="w-full h-auto object-cover transition-all duration-700 group-hover:scale-105" @error="handleImageError">
               <div v-if="product.badge && product.badge !== 'none'" class="absolute top-3 left-3 md:top-4 md:left-4 bg-amber-600 text-white px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-semibold">
                 {{ product.badge.replace('_', ' ').toUpperCase() }}
               </div>
@@ -52,7 +52,7 @@
                 class="w-14 h-14 md:w-20 md:h-20 rounded-lg md:rounded-xl overflow-hidden cursor-pointer transition-all hover:scale-105"
                 :class="currentImage === thumb ? 'border-2 border-amber-600' : 'border-2 border-transparent hover:border-amber-600'"
               >
-                <img :src="thumb" :alt="product.name" class="w-full h-full object-cover">
+                <img :src="thumb" :alt="product.name" class="w-full h-full object-cover" @error="handleImageError">
               </div>
             </div>
           </div>
@@ -78,8 +78,11 @@
           
           <div class="flex items-center gap-2 md:gap-3 mb-3 md:mb-4">
             <div class="flex gap-0.5 md:gap-1 text-amber-500 text-sm md:text-base">
-              <i v-for="star in 5" :key="star" class="fas fa-star" :class="{ 'text-amber-300': star > Math.floor(product.rating || 5) }"></i>
-              <i v-if="(product.rating || 5) % 1 !== 0" class="fas fa-star-half-alt text-amber-500"></i>
+              <template v-for="star in 5" :key="star">
+                <i v-if="star <= Math.floor(product.rating || 5)" class="fas fa-star text-amber-500"></i>
+                <i v-else-if="star === Math.ceil(product.rating || 5) && (product.rating || 5) % 1 !== 0" class="fas fa-star-half-alt text-amber-500"></i>
+                <i v-else class="fas fa-star text-amber-200"></i>
+              </template>
             </div>
             <span class="text-stone-500 text-xs md:text-sm">({{ product.review_count || 0 }} reviews)</span>
           </div>
@@ -215,7 +218,7 @@
           <div v-for="related in relatedProducts" :key="related.id" class="group bg-white rounded-xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-500 hover:-translate-y-3">
             <router-link :to="`/product/${related.slug}`" class="block">
               <div class="h-40 sm:h-48 md:h-56 overflow-hidden relative">
-                <img :src="related.image" :alt="related.name" class="w-full h-full object-cover transition duration-700 group-hover:scale-110">
+                <img :src="related.image" :alt="related.name" class="w-full h-full object-cover transition duration-700 group-hover:scale-110" @error="handleImageError">
                 <div v-if="related.badge && related.badge !== 'none'" class="absolute top-1 right-1 bg-amber-100/90 backdrop-blur-sm rounded-full px-1.5 py-0.5 text-[8px] md:text-[10px] font-semibold text-amber-800">
                   {{ related.badge.replace('_', ' ').toUpperCase() }}
                 </div>
@@ -349,6 +352,10 @@ function toggleWishlist() {
       badge: product.value.badge
     })
   }
+}
+
+function handleImageError(event) {
+  event.target.src = 'https://placehold.co/400x500/amber/white?text=Image+Not+Found'
 }
 
 async function loadProduct(id) {

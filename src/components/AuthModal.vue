@@ -160,6 +160,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { EMAIL_PREFIX, prefixEmail, cleanEmail } from '@/services/osimart'
 import VerifyModal from './VerifyModal.vue'
 
 const emit = defineEmits(['login-success'])
@@ -333,13 +334,7 @@ const handleLogin = async () => {
     
     // ✅ ALWAYS send the raw email (with prefix) to the API
     // If user entered clean email, add the prefix
-    let emailToSend = loginForm.value.email
-    
-    // If it doesn't have the prefix, add it
-    if (!emailToSend.startsWith('mystore1__')) {
-      emailToSend = `mystore1__${emailToSend}`
-      console.log('🔄 Adding prefix for API call:', emailToSend)
-    }
+    const emailToSend = prefixEmail(loginForm.value.email)
 
     console.log('📧 Sending to API:', emailToSend)
 
@@ -427,17 +422,12 @@ const handleVerificationSuccess = (data) => {
 
   // Get the raw email with prefix
   const loginEmail = data?.rawEmail || rawEmailForLogin.value || verifyEmail.value
+  const displayEmail = cleanEmail(loginEmail)
 
-  // Show clean email to user
-  const displayEmail = loginEmail.replace(/^mystore1__/, '')
-
-  console.log('📧 Login with:', loginEmail)
-  console.log('📧 Display:', displayEmail)
-
-  // Auto-fill login form with the raw email (with prefix)
+  // Pre-fill login form silently
   loginForm.value.email = loginEmail
 
-  alert(`✅ Your account has been verified!\n\nLogin with:\n📧 ${displayEmail}`)
+  alert(`✅ Your account has been verified!\n\nPlease sign in with your email:\n📧 ${displayEmail}`)
 
   authStore.authMode = 'login'
   authStore.openAuthModal('login')

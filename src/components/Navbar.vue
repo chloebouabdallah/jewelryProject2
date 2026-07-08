@@ -184,10 +184,10 @@ const handleScroll = () => {
   isScrolled.value = window.scrollY > 50
 }
 
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener('scroll', handleScroll)
   document.addEventListener('click', handleClickOutside)
-  authStore.checkAuth()
+  await authStore.checkAuth()
 })
 
 onUnmounted(() => {
