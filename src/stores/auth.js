@@ -2,7 +2,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useCartStore } from './cart'
-import { authAPI, cleanEmail } from '@/services/osimart'
+import { authAPI, cleanEmail, EMAIL_PREFIX } from '@/services/osimart'
+
+// Helper to clean the prefix from any string (not just emails)
+function cleanPrefix(str) {
+  if (!str) return ''
+  return str.replace(new RegExp(`^${EMAIL_PREFIX}`), '')
+}
 
 export const useAuthStore = defineStore('auth', () => {
   // State
@@ -37,8 +43,8 @@ export const useAuthStore = defineStore('auth', () => {
       if (saved) {
         const data = JSON.parse(saved)
         if (data.user) {
-          data.user.name = cleanEmail(data.user.name || '')
           data.user.email = cleanEmail(data.user.email || '')
+          data.user.name = cleanPrefix(data.user.name || '')
         }
         user.value = data.user || null
         isAuthenticated.value = data.isAuthenticated || false
@@ -60,11 +66,11 @@ export const useAuthStore = defineStore('auth', () => {
   // HELPER: Save/Get user display name
   // ============================================
   function saveUserDisplayName(name) {
-    localStorage.setItem('soutou_user_display_name', name)
+    localStorage.setItem('soutou_user_display_name', cleanPrefix(name))
   }
 
   function getUserDisplayName() {
-    return cleanEmail(localStorage.getItem('soutou_user_display_name') || '')
+    return cleanPrefix(localStorage.getItem('soutou_user_display_name') || '')
   }
 
   // ============================================
@@ -109,16 +115,10 @@ export const useAuthStore = defineStore('auth', () => {
         }
       }
 
-      // ✅ The API returns email with prefix
       const rawEmail = userData.email || email
       const displayEmail = cleanEmail(rawEmail)
 
-      // ✅ Get display name - priority order:
-      // 1. From stored name (set during signup)
-      // 2. From API response (first_name + last_name or name)
-      // 3. Fallback to clean email username
       let displayName = getUserDisplayName()
-
       if (!displayName) {
         if (userData.first_name && userData.last_name) {
           displayName = `${userData.first_name} ${userData.last_name}`
@@ -127,7 +127,6 @@ export const useAuthStore = defineStore('auth', () => {
         } else {
           displayName = displayEmail.split('@')[0]
         }
-        // Save the name for future logins
         saveUserDisplayName(displayName)
       }
 
@@ -135,11 +134,13 @@ export const useAuthStore = defineStore('auth', () => {
         ...userData,
         id: userData.id || userData.user_id || 'user_' + Date.now(),
         email: displayEmail,
-        rawEmail,
+        rawEmail: rawEmail,
         name: displayName,
         firstName: userData.first_name || '',
         lastName: userData.last_name || '',
         provider: userData.provider || 'email',
+        // Store phone if available from user data
+        phone: userData.mobile_number || userData.phone || '',
       }
 
       isAuthenticated.value = true
@@ -184,7 +185,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // ============================================
-  // SIGNUP
+  // SIGNUP - FIXED: log phone number and response
   // ============================================
   async function signup(firstName, lastName, email, password, mobileNumber) {
     isLoading.value = true
@@ -193,33 +194,38 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const STORE_ID = '92ea209b-b32c-448e-85af-7296eb8eea00'
 
-      const cleanEmailInput = cleanEmail(email)
+      // Ensure phone number is in correct format (with country code)
+      // If user didn't include '+', we could prepend a default, but we'll let them enter it.
+      const cleanPhone = mobileNumber.trim()
 
       const signupData = {
         register_as: 'customer',
         store_id: STORE_ID,
         first_name: firstName,
         last_name: lastName,
-        email: cleanEmailInput,
+        email: cleanEmail(email),
         password: password,
-        mobile_number: mobileNumber
+        mobile_number: cleanPhone  // API expects 'mobile_number'
       }
 
-      console.log('📝 Registering user:', cleanEmailInput)
+      console.log('📝 Registering user:', cleanEmail(email))
+      console.log('📤 Signup data:', signupData)
 
       const response = await authAPI.register(signupData)
       console.log('✅ Signup response:', response.data)
 
-      const rawEmailFromAPI = response.data.email || cleanEmailInput
+      // Log whether phone number is present in response
+      if (response.data.mobile_number) {
+        console.log('📱 Phone number saved in API response:', response.data.mobile_number)
+      } else {
+        console.warn('⚠️ Phone number not returned in API response. It may not have been saved.')
+      }
+
+      const rawEmailFromAPI = response.data.email || cleanEmail(email)
       const displayEmail = cleanEmail(rawEmailFromAPI)
 
-      // ✅ Save the user's full name for future logins
       const fullName = `${firstName} ${lastName}`
       saveUserDisplayName(fullName)
-
-      console.log('📧 Raw email from API (for login):', rawEmailFromAPI)
-      console.log('📧 Display email (UI):', displayEmail)
-      console.log('👤 Saved display name:', fullName)
 
       isLoading.value = false
       showAuthModal.value = false
@@ -232,7 +238,8 @@ export const useAuthStore = defineStore('auth', () => {
           rawEmail: rawEmailFromAPI,
           storeId: STORE_ID,
           firstName: firstName,
-          lastName: lastName
+          lastName: lastName,
+          phone: cleanPhone // pass back for potential use
         }
       }
 
@@ -242,6 +249,7 @@ export const useAuthStore = defineStore('auth', () => {
       let errorMessage = 'Signup failed. Please try again.'
 
       if (err.response?.data) {
+        console.error('API error response:', err.response.data)
         if (err.response.data.message) {
           errorMessage = err.response.data.message
         } else if (err.response.data.error) {
@@ -277,7 +285,6 @@ export const useAuthStore = defineStore('auth', () => {
   // ============================================
   function socialLogin(userData) {
     const displayName = userData.name || userData.displayName || 'Social User'
-    // Save the name for future logins
     saveUserDisplayName(displayName)
 
     const rawEmail = userData.email || ''
@@ -293,6 +300,7 @@ export const useAuthStore = defineStore('auth', () => {
       provider: userData.provider || 'google',
       deviceName: userData.deviceName || 'Desktop',
       deviceId: userData.deviceId || 'unknown',
+      phone: userData.phone || '',
     }
 
     isAuthenticated.value = true
@@ -343,6 +351,10 @@ export const useAuthStore = defineStore('auth', () => {
         const response = await authAPI.getProfile()
         if (response.data) {
           console.log('✅ Auth token validated:', user.value.email)
+          // Optionally update user data with fresh info
+          if (response.data.mobile_number) {
+            user.value.phone = response.data.mobile_number
+          }
           const cartStore = useCartStore()
           cartStore.setUser(user.value.email)
           return true
