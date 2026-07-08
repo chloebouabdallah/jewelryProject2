@@ -52,9 +52,20 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // ============================================
-  // LOGIN - Customer only (no device params)
+  // HELPER: Save/Get user display name
   // ============================================
-  async function login(email, password) {
+  function saveUserDisplayName(name) {
+    localStorage.setItem('soutou_user_display_name', name)
+  }
+
+  function getUserDisplayName() {
+    return localStorage.getItem('soutou_user_display_name') || ''
+  }
+
+  // ============================================
+  // LOGIN
+  // ============================================
+  async function login(email, password, deviceName, deviceId) {
     isLoading.value = true
     error.value = null
 
@@ -62,11 +73,12 @@ export const useAuthStore = defineStore('auth', () => {
       const loginData = {
         email: email,
         password: password,
-        'login-as': 'customer'
+        'login-as': 'customer',
+        'device-name': deviceName,
+        'device-id': deviceId
       }
 
-      console.log('🔐 Logging in as customer:', email)
-      console.log('📤 Login data:', loginData)
+      console.log('🔐 Logging in with email (API):', email)
 
       const response = await authAPI.login(loginData)
       console.log('✅ Login response:', response.data)
@@ -78,127 +90,6 @@ export const useAuthStore = defineStore('auth', () => {
         if (response.data.user) {
           userData = response.data.user
           authToken = response.data.token || response.data.access_token || null
-        } else if (response.data.data && response.data.data.user) {
-          userData = response.data.data.user
-          authToken = response.data.data.token || response.data.token || null
-        } else if (response.data.id || response.data.email || response.data.pk) {
-          userData = response.data
-          authToken = response.data.token || response.data.access_token || null
-        } else if (response.data.token || response.data.access_token) {
-          authToken = response.data.token || response.data.access_token
-          if (response.data.user_id || response.data.id) {
-            userData = {
-              id: response.data.user_id || response.data.id,
-              email: response.data.email || email,
-              name: response.data.name || email.split('@')[0]
-            }
-          }
-        }
-      }
-
-      if (!userData) {
-        console.warn('⚠️ No user data in response, creating fallback')
-        userData = {
-          id: 'user_' + Date.now(),
-          email: email,
-          name: email.split('@')[0]
-        }
-      }
-
-      user.value = {
-        id: userData.id || userData.user_id || userData.pk || 'user_' + Date.now(),
-        email: userData.email || email,
-        name: userData.name || userData.full_name || userData.display_name || email.split('@')[0],
-        provider: userData.provider || 'email',
-        ...userData
-      }
-
-      isAuthenticated.value = true
-      token.value = authToken
-
-      saveToLocalStorage()
-      showAuthModal.value = false
-
-      console.log('✅ Customer login successful:', user.value.email)
-
-      const cartStore = useCartStore()
-      cartStore.setUser(email)
-
-      return { success: true, user: user.value, token: authToken }
-
-    } catch (err) {
-      console.error('❌ Login failed:', err)
-      
-      let errorMessage = 'Login failed. Please check your credentials.'
-      
-      if (err.response) {
-        console.log('Response status:', err.response.status)
-        console.log('Response data:', err.response.data)
-        
-        if (err.response.data) {
-          if (typeof err.response.data === 'string') {
-            errorMessage = err.response.data
-          } else if (err.response.data.message) {
-            errorMessage = err.response.data.message
-          } else if (err.response.data.error) {
-            errorMessage = err.response.data.error
-          } else if (err.response.data.detail) {
-            errorMessage = err.response.data.detail
-          } else if (err.response.data.non_field_errors) {
-            errorMessage = err.response.data.non_field_errors.join(', ')
-          } else if (err.response.data.email) {
-            errorMessage = err.response.data.email.join(', ')
-          } else if (err.response.data.password) {
-            errorMessage = err.response.data.password.join(', ')
-          } else {
-            errorMessage = JSON.stringify(err.response.data)
-          }
-        }
-      } else if (err.message) {
-        errorMessage = err.message
-      }
-      
-      error.value = errorMessage
-      throw error.value
-    } finally {
-      isLoading.value = false
-    }
-  }
-
-  // ============================================
-  // SIGNUP - With all required fields
-  // ============================================
-  async function signup(name, email, password) {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const STORE_ID = '92ea209b-b32c-448e-85af-7296eb8eea00'
-      
-      const signupData = {
-        name: name,
-        email: email,
-        password: password,
-        register_as: 'customer',
-        store: STORE_ID
-      }
-
-      console.log('📝 Registering user:', email)
-      console.log('📤 Signup data:', signupData)
-
-      const response = await authAPI.register(signupData)
-      console.log('✅ Signup response:', response.data)
-
-      let userData = null
-      let authToken = null
-
-      if (response.data) {
-        if (response.data.user) {
-          userData = response.data.user
-          authToken = response.data.token || response.data.access_token || null
-        } else if (response.data.data && response.data.data.user) {
-          userData = response.data.data.user
-          authToken = response.data.data.token || response.data.token || null
         } else if (response.data.id || response.data.email) {
           userData = response.data
           authToken = response.data.token || response.data.access_token || null
@@ -209,15 +100,40 @@ export const useAuthStore = defineStore('auth', () => {
         userData = {
           id: 'user_' + Date.now(),
           email: email,
-          name: name
+          name: email.split('@')[0]
         }
+      }
+
+      // ✅ The API returns email with prefix
+      const rawEmail = userData.email || email
+      const displayEmail = rawEmail.replace(/^mystore1__/, '')
+
+      // ✅ Get display name - priority order:
+      // 1. From stored name (set during signup)
+      // 2. From API response (first_name + last_name or name)
+      // 3. Fallback to clean email username
+      let displayName = getUserDisplayName()
+
+      if (!displayName) {
+        if (userData.first_name && userData.last_name) {
+          displayName = `${userData.first_name} ${userData.last_name}`
+        } else if (userData.name) {
+          displayName = userData.name
+        } else {
+          displayName = displayEmail.split('@')[0]
+        }
+        // Save the name for future logins
+        saveUserDisplayName(displayName)
       }
 
       user.value = {
         id: userData.id || userData.user_id || 'user_' + Date.now(),
-        email: userData.email || email,
-        name: userData.name || name,
-        provider: 'email',
+        email: displayEmail,
+        rawEmail: rawEmail,
+        name: displayName, // ✅ User's actual name
+        firstName: userData.first_name || '',
+        lastName: userData.last_name || '',
+        provider: userData.provider || 'email',
         ...userData
       }
 
@@ -227,51 +143,34 @@ export const useAuthStore = defineStore('auth', () => {
       saveToLocalStorage()
       showAuthModal.value = false
 
-      console.log('✅ Signup successful:', user.value.email)
+      console.log('✅ Login successful!')
+      console.log('👤 User name:', user.value.name)
+      console.log('📧 Display email:', user.value.email)
 
       const cartStore = useCartStore()
-      cartStore.setUser(email)
+      cartStore.setUser(user.value.email)
 
       return { success: true, user: user.value, token: authToken }
 
     } catch (err) {
-      console.error('❌ Signup failed:', err)
-      
-      let errorMessage = 'Signup failed. Please try again.'
-      
-      if (err.response) {
-        console.log('Response status:', err.response.status)
-        console.log('Response data:', err.response.data)
-        
-        if (err.response.data) {
-          if (typeof err.response.data === 'string') {
-            errorMessage = err.response.data
-          } else if (err.response.data.message) {
-            errorMessage = err.response.data.message
-          } else if (err.response.data.error) {
-            errorMessage = err.response.data.error
-          } else if (err.response.data.detail) {
-            errorMessage = err.response.data.detail
-          } else if (err.response.data.non_field_errors) {
-            errorMessage = err.response.data.non_field_errors.join(', ')
-          } else if (err.response.data.email) {
-            errorMessage = err.response.data.email.join(', ')
-          } else if (err.response.data.password) {
-            errorMessage = err.response.data.password.join(', ')
-          } else if (err.response.data.name) {
-            errorMessage = err.response.data.name.join(', ')
-          } else if (err.response.data.register_as) {
-            errorMessage = err.response.data.register_as.join(', ')
-          } else if (err.response.data.store) {
-            errorMessage = err.response.data.store.join(', ')
-          } else {
-            errorMessage = JSON.stringify(err.response.data)
-          }
+      console.error('❌ Login failed:', err)
+
+      let errorMessage = 'Login failed. Please check your credentials.'
+
+      if (err.response?.data) {
+        if (err.response.data.message) {
+          errorMessage = err.response.data.message
+        } else if (err.response.data.error) {
+          errorMessage = err.response.data.error
+        } else if (err.response.data.detail) {
+          errorMessage = err.response.data.detail
+        } else if (err.response.data.non_field_errors) {
+          errorMessage = err.response.data.non_field_errors.join(', ')
+        } else {
+          errorMessage = JSON.stringify(err.response.data)
         }
-      } else if (err.message) {
-        errorMessage = err.message
       }
-      
+
       error.value = errorMessage
       throw error.value
     } finally {
@@ -280,14 +179,114 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // ============================================
-  // SOCIAL LOGIN (Google/Facebook)
+  // SIGNUP
+  // ============================================
+  async function signup(firstName, lastName, email, password, mobileNumber) {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const STORE_ID = '92ea209b-b32c-448e-85af-7296eb8eea00'
+
+      const cleanEmailInput = email.replace(/^mystore1__/, '')
+
+      const signupData = {
+        register_as: 'customer',
+        store_id: STORE_ID,
+        first_name: firstName,
+        last_name: lastName,
+        email: cleanEmailInput,
+        password: password,
+        mobile_number: mobileNumber
+      }
+
+      console.log('📝 Registering user:', cleanEmailInput)
+
+      const response = await authAPI.register(signupData)
+      console.log('✅ Signup response:', response.data)
+
+      const rawEmailFromAPI = response.data.email || cleanEmailInput
+      const displayEmail = rawEmailFromAPI.replace(/^mystore1__/, '')
+
+      // ✅ Save the user's full name for future logins
+      const fullName = `${firstName} ${lastName}`
+      saveUserDisplayName(fullName)
+
+      console.log('📧 Raw email from API (for login):', rawEmailFromAPI)
+      console.log('📧 Display email (UI):', displayEmail)
+      console.log('👤 Saved display name:', fullName)
+
+      isLoading.value = false
+      showAuthModal.value = false
+
+      return {
+        success: true,
+        requiresVerification: true,
+        verificationData: {
+          email: displayEmail,
+          rawEmail: rawEmailFromAPI,
+          storeId: STORE_ID,
+          firstName: firstName,
+          lastName: lastName
+        }
+      }
+
+    } catch (err) {
+      console.error('❌ Signup failed:', err)
+
+      let errorMessage = 'Signup failed. Please try again.'
+
+      if (err.response?.data) {
+        if (err.response.data.message) {
+          errorMessage = err.response.data.message
+        } else if (err.response.data.error) {
+          errorMessage = err.response.data.error
+        } else if (err.response.data.detail) {
+          errorMessage = err.response.data.detail
+        } else if (err.response.data.non_field_errors) {
+          errorMessage = err.response.data.non_field_errors.join(', ')
+        } else if (err.response.data.email) {
+          errorMessage = err.response.data.email.join(', ')
+        } else if (err.response.data.password) {
+          errorMessage = err.response.data.password.join(', ')
+        } else if (err.response.data.first_name) {
+          errorMessage = err.response.data.first_name.join(', ')
+        } else if (err.response.data.last_name) {
+          errorMessage = err.response.data.last_name.join(', ')
+        } else if (err.response.data.mobile_number) {
+          errorMessage = err.response.data.mobile_number.join(', ')
+        } else {
+          errorMessage = JSON.stringify(err.response.data)
+        }
+      }
+
+      error.value = errorMessage
+      throw error.value
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // ============================================
+  // SOCIAL LOGIN (Google)
   // ============================================
   function socialLogin(userData) {
+    const displayName = userData.name || userData.displayName || 'Social User'
+    // Save the name for future logins
+    saveUserDisplayName(displayName)
+
+    const rawEmail = userData.email || ''
+    const displayEmail = rawEmail.replace(/^mystore1__/, '')
+
     user.value = {
       id: userData.id || userData.user_id || 'social_' + Date.now(),
-      name: userData.name || userData.displayName || 'Social User',
-      email: userData.email,
-      provider: userData.provider || 'social',
+      name: displayName,
+      email: displayEmail,
+      rawEmail: rawEmail,
+      picture: userData.picture || '',
+      provider: userData.provider || 'google',
+      deviceName: userData.deviceName || 'Desktop',
+      deviceId: userData.deviceId || 'unknown',
       ...userData
     }
 
@@ -297,10 +296,10 @@ export const useAuthStore = defineStore('auth', () => {
     saveToLocalStorage()
     showAuthModal.value = false
 
-    console.log('🔐 Social login successful:', userData.email)
+    console.log('🔐 Google login successful:', displayEmail)
 
     const cartStore = useCartStore()
-    cartStore.setUser(userData.email)
+    cartStore.setUser(displayEmail)
   }
 
   // ============================================
@@ -333,7 +332,7 @@ export const useAuthStore = defineStore('auth', () => {
   // ============================================
   function checkAuth() {
     const loaded = loadFromLocalStorage()
-    
+
     if (loaded && isAuthenticated.value && user.value) {
       console.log('✅ Auth restored:', user.value.email)
       const cartStore = useCartStore()
@@ -362,7 +361,6 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    // State
     user,
     isAuthenticated,
     showAuthModal,
@@ -370,13 +368,9 @@ export const useAuthStore = defineStore('auth', () => {
     token,
     isLoading,
     error,
-
-    // Getters
     isLoggedIn,
     currentUser,
     getToken,
-
-    // Actions
     login,
     signup,
     socialLogin,

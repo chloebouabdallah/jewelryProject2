@@ -1,4 +1,4 @@
-// src/services/osimart.js - ADD authAxios instance
+// src/services/osimart.js - Add token interceptor for authAxios
 
 import axios from 'axios';
 
@@ -6,11 +6,11 @@ import axios from 'axios';
 // API CONFIGURATION
 // ============================================
 const API_BASE_URL = 'https://api.osimart.com/store/apis';
-const ROOT_API_BASE_URL = 'https://api.osimart.com'; // ← NEW for auth
+const ROOT_API_BASE_URL = 'https://api.osimart.com';
 const STORE_ID = '92ea209b-b32c-448e-85af-7296eb8eea00';
 
 // ============================================
-// AXIOS INSTANCE - For store APIs (YOUR ORIGINAL)
+// AXIOS INSTANCE - For store APIs
 // ============================================
 export const osimartApi = axios.create({
   baseURL: API_BASE_URL,
@@ -32,14 +32,31 @@ osimartApi.interceptors.request.use((config) => {
 });
 
 // ============================================
-// ✅ NEW: AXIOS INSTANCE FOR AUTH - Uses root URL
+// AXIOS INSTANCE FOR AUTH - Uses root URL
 // ============================================
 export const authAxios = axios.create({
-  baseURL: ROOT_API_BASE_URL, // ← Uses https://api.osimart.com (NOT /store/apis/)
+  baseURL: ROOT_API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
   withCredentials: true,
+});
+
+// ✅ Add token to auth requests if available
+authAxios.interceptors.request.use((config) => {
+  // Get token from localStorage
+  const authData = localStorage.getItem('soutou_auth');
+  if (authData) {
+    try {
+      const parsed = JSON.parse(authData);
+      if (parsed.token) {
+        config.headers.Authorization = `Bearer ${parsed.token}`;
+      }
+    } catch (e) {
+      console.warn('Failed to parse auth data for token:', e);
+    }
+  }
+  return config;
 });
 
 // ============================================
@@ -172,28 +189,45 @@ export const orderSummariesAPI = {
 };
 
 // ============================================
-// ✅ AUTH API - NOW USES authAxios (root URL)
+// AUTH API - Uses authAxios (root URL)
 // ============================================
 export const authAPI = {
+  // ✅ LOGIN
   login: (data) => {
     console.log('🔐 Login request to Osimart:', data);
-    // authAxios uses https://api.osimart.com + /auth/login/
     return authAxios.post('/auth/login/', data, {
       params: { store: STORE_ID }
     });
   },
+  // ✅ REGISTER
   register: (data) => {
     console.log('📝 Register request to Osimart:', data);
     return authAxios.post('/auth/register/', data, {
       params: { store: STORE_ID }
     });
   },
+  // ✅ VERIFY - 4-digit code verification
+  verify: (data) => {
+    console.log('✅ Verify request to Osimart:', data);
+    return authAxios.post('/auth/verify/', data, {
+      params: { store: STORE_ID }
+    });
+  },
+  // ✅ RESEND VERIFICATION CODE - /auth/regen/
+  resendVerification: (data) => {
+    console.log('📧 Resend verification request to Osimart:', data);
+    return authAxios.post('/auth/regen/', data, {
+      params: { store: STORE_ID }
+    });
+  },
+  // ✅ LOGOUT
   logout: () => {
     console.log('🚪 Logout request to Osimart');
     return authAxios.post('/auth/logout/', null, {
       params: { store: STORE_ID }
     });
   },
+  // ✅ GET PROFILE
   getProfile: () => {
     console.log('👤 Get profile request to Osimart');
     return authAxios.get('/auth/profile/', {
@@ -202,7 +236,4 @@ export const authAPI = {
   },
 };
 
-// ============================================
-// DEFAULT EXPORT
-// ============================================
 export default osimartApi;

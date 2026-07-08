@@ -1,5 +1,4 @@
-<!-- src/components/Navbar.vue - Remove admin references -->
-
+<!-- src/components/Navbar.vue -->
 <template>
   <nav ref="navbarRef" class="fixed w-full z-50 transition-all duration-300 backdrop-blur-md shadow-sm" :class="navbarClass">
     <div class="max-w-7xl mx-auto px-4 md:px-8 py-3 md:py-4 flex justify-between items-center">
@@ -45,11 +44,14 @@
           </button>
           
           <!-- User Menu Dropdown -->
-          <div v-if="userMenuOpen" class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50 border border-amber-100">
+          <div v-if="userMenuOpen" class="absolute right-0 mt-2 w-52 bg-white rounded-lg shadow-lg py-2 z-50 border border-amber-100">
             <template v-if="authStore.isAuthenticated">
               <div class="px-4 py-2 border-b border-amber-100">
-                <p class="text-sm font-semibold text-stone-800">{{ authStore.currentUser?.name || authStore.currentUser?.email?.split('@')[0] }}</p>
-                <p class="text-xs text-stone-500">{{ authStore.currentUser?.email }}</p>
+                <!-- ✅ Show the user's name, not email -->
+                <div class="flex items-center justify-between">
+                  <p class="text-sm font-semibold text-stone-800">{{ authStore.currentUser?.name || authStore.currentUser?.email?.split('@')[0] }}</p>
+                </div>
+                <p class="text-xs text-stone-500 truncate">{{ authStore.currentUser?.email }}</p>
                 <p class="text-[10px] text-amber-500 mt-0.5">Logged in with {{ authStore.currentUser?.provider || 'email' }}</p>
               </div>
               
