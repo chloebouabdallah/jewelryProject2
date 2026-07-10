@@ -227,6 +227,20 @@ export const authAPI = {
       params: { store: STORE_ID }
     });
   },
+
+    guestRegister: (data) => {
+    console.log('👤 Guest register request to Osimart:', data);
+    return authAxios.post('/auth/guest/', data, {
+      params: { store: STORE_ID }
+    });
+  },
+  changePassword: (data) => {
+    console.log('🔑 Change password request to Osimart:', data);
+    return authAxios.post('/auth/change-password/', data, {
+      params: { store: STORE_ID }
+    });
+  },
+
   // ✅ GET PROFILE
   getProfile: () => {
     console.log('👤 Get profile request to Osimart');

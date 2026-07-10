@@ -187,98 +187,108 @@ export const useAuthStore = defineStore('auth', () => {
   // ============================================
   // SIGNUP - FIXED: log phone number and response
   // ============================================
-  async function signup(firstName, lastName, email, password, mobileNumber) {
-    isLoading.value = true
-    error.value = null
+ async function signup(firstName, lastName, email, password, mobileNumber) {
+  isLoading.value = true
+  error.value = null
 
-    try {
-      const STORE_ID = '92ea209b-b32c-448e-85af-7296eb8eea00'
+  try {
+    const STORE_ID = '92ea209b-b32c-448e-85af-7296eb8eea00'
 
-      // Ensure phone number is in correct format (with country code)
-      // If user didn't include '+', we could prepend a default, but we'll let them enter it.
-      const cleanPhone = mobileNumber.trim()
+    // Format phone number to +961XXXXXXXX
+    const formattedPhone = formatPhoneNumber(mobileNumber.trim())
+    console.log('📱 Formatted phone number:', formattedPhone)
 
-      const signupData = {
-        register_as: 'customer',
-        store_id: STORE_ID,
-        first_name: firstName,
-        last_name: lastName,
-        email: cleanEmail(email),
-        password: password,
-        mobile_number: cleanPhone  // API expects 'mobile_number'
-      }
+    const cleanEmailInput = cleanEmail(email)
 
-      console.log('📝 Registering user:', cleanEmail(email))
-      console.log('📤 Signup data:', signupData)
-
-      const response = await authAPI.register(signupData)
-      console.log('✅ Signup response:', response.data)
-
-      // Log whether phone number is present in response
-      if (response.data.mobile_number) {
-        console.log('📱 Phone number saved in API response:', response.data.mobile_number)
-      } else {
-        console.warn('⚠️ Phone number not returned in API response. It may not have been saved.')
-      }
-
-      const rawEmailFromAPI = response.data.email || cleanEmail(email)
-      const displayEmail = cleanEmail(rawEmailFromAPI)
-
-      const fullName = `${firstName} ${lastName}`
-      saveUserDisplayName(fullName)
-
-      isLoading.value = false
-      showAuthModal.value = false
-
-      return {
-        success: true,
-        requiresVerification: true,
-        verificationData: {
-          email: displayEmail,
-          rawEmail: rawEmailFromAPI,
-          storeId: STORE_ID,
-          firstName: firstName,
-          lastName: lastName,
-          phone: cleanPhone // pass back for potential use
-        }
-      }
-
-    } catch (err) {
-      console.error('❌ Signup failed:', err)
-
-      let errorMessage = 'Signup failed. Please try again.'
-
-      if (err.response?.data) {
-        console.error('API error response:', err.response.data)
-        if (err.response.data.message) {
-          errorMessage = err.response.data.message
-        } else if (err.response.data.error) {
-          errorMessage = err.response.data.error
-        } else if (err.response.data.detail) {
-          errorMessage = err.response.data.detail
-        } else if (err.response.data.non_field_errors) {
-          errorMessage = err.response.data.non_field_errors.join(', ')
-        } else if (err.response.data.email) {
-          errorMessage = err.response.data.email.join(', ')
-        } else if (err.response.data.password) {
-          errorMessage = err.response.data.password.join(', ')
-        } else if (err.response.data.first_name) {
-          errorMessage = err.response.data.first_name.join(', ')
-        } else if (err.response.data.last_name) {
-          errorMessage = err.response.data.last_name.join(', ')
-        } else if (err.response.data.mobile_number) {
-          errorMessage = err.response.data.mobile_number.join(', ')
-        } else {
-          errorMessage = JSON.stringify(err.response.data)
-        }
-      }
-
-      error.value = errorMessage
-      throw error.value
-    } finally {
-      isLoading.value = false
+    // ✅ Use 'mobile' as the field name (as shown in the working example)
+    const signupData = {
+      register_as: 'customer',
+      store_id: STORE_ID,
+      first_name: firstName,
+      last_name: lastName,
+      email: cleanEmailInput,
+      password: password,
+      mobile: formattedPhone,  // ✅ THIS IS THE CORRECT FIELD NAME
+      device_name: navigator.userAgent || 'web-client',
+      device_id: localStorage.getItem('device_id') || `device_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`,
     }
+
+    // Make sure device_id is saved
+    if (!localStorage.getItem('device_id')) {
+      localStorage.setItem('device_id', signupData.device_id)
+    }
+
+    console.log('📝 Registering user:', cleanEmailInput)
+    console.log('📤 Signup data:', signupData)
+
+    const response = await authAPI.register(signupData)
+    console.log('✅ Signup response:', response.data)
+
+    // Check if phone was saved
+    if (response.data.mobile) {
+      console.log('📱 Phone saved successfully:', response.data.mobile)
+    } else {
+      console.warn('⚠️ Phone not returned in response. Check API.')
+    }
+
+    const rawEmailFromAPI = response.data.email || cleanEmailInput
+    const displayEmail = cleanEmail(rawEmailFromAPI)
+
+    const fullName = `${firstName} ${lastName}`
+    saveUserDisplayName(fullName)
+
+    isLoading.value = false
+    showAuthModal.value = false
+
+    return {
+      success: true,
+      requiresVerification: true,
+      verificationData: {
+        email: displayEmail,
+        rawEmail: rawEmailFromAPI,
+        storeId: STORE_ID,
+        firstName: firstName,
+        lastName: lastName,
+        phone: formattedPhone
+      }
+    }
+
+  } catch (err) {
+    console.error('❌ Signup failed:', err)
+
+    let errorMessage = 'Signup failed. Please try again.'
+
+    if (err.response?.data) {
+      console.error('API error response:', err.response.data)
+      if (err.response.data.message) {
+        errorMessage = err.response.data.message
+      } else if (err.response.data.error) {
+        errorMessage = err.response.data.error
+      } else if (err.response.data.detail) {
+        errorMessage = err.response.data.detail
+      } else if (err.response.data.non_field_errors) {
+        errorMessage = err.response.data.non_field_errors.join(', ')
+      } else if (err.response.data.email) {
+        errorMessage = err.response.data.email.join(', ')
+      } else if (err.response.data.password) {
+        errorMessage = err.response.data.password.join(', ')
+      } else if (err.response.data.first_name) {
+        errorMessage = err.response.data.first_name.join(', ')
+      } else if (err.response.data.last_name) {
+        errorMessage = err.response.data.last_name.join(', ')
+      } else if (err.response.data.mobile) {
+        errorMessage = err.response.data.mobile.join(', ')
+      } else {
+        errorMessage = JSON.stringify(err.response.data)
+      }
+    }
+
+    error.value = errorMessage
+    throw error.value
+  } finally {
+    isLoading.value = false
   }
+}
 
   // ============================================
   // SOCIAL LOGIN (Google)
