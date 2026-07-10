@@ -1,5 +1,6 @@
 // src/services/osimart.js
 import axios from 'axios';
+import { getCookie, setCookie, deleteCookie } from '@/utils/cookieHelper';
 
 // ============================================
 // API CONFIGURATION
@@ -19,7 +20,6 @@ export const osimartApi = axios.create({
   withCredentials: true,
 });
 
-// ✅ Add store ID to all requests automatically
 osimartApi.interceptors.request.use((config) => {
   if (!config.params) {
     config.params = {};
@@ -31,7 +31,7 @@ osimartApi.interceptors.request.use((config) => {
 });
 
 // ============================================
-// AXIOS INSTANCE FOR AUTH - Uses root URL
+// AXIOS INSTANCE FOR AUTH
 // ============================================
 export const authAxios = axios.create({
   baseURL: ROOT_API_BASE_URL,
@@ -41,73 +41,86 @@ export const authAxios = axios.create({
   withCredentials: true,
 });
 
-// ✅ Token management
-let isRefreshing = false;
-let failedQueue = [];
+// ============================================
+// TOKEN MANAGEMENT
+// ============================================
 
-const processQueue = (error, token = null) => {
-  failedQueue.forEach(prom => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
-  });
-  failedQueue = [];
-};
+// Access token - stored in memory only
+let accessToken = null;
+let sessionId = null;
 
-// ✅ Request interceptor - Add token to all requests
+// Set tokens
+export function setTokens(tokens) {
+  if (tokens.access_token) {
+    accessToken = tokens.access_token;
+    console.log('🔑 Access token stored in memory');
+  }
+  
+  if (tokens.refresh_token) {
+    setCookie('refresh_token', tokens.refresh_token, 7);
+    console.log('🔑 Refresh token stored in secure cookie');
+  }
+  
+  if (tokens.session_id) {
+    sessionId = tokens.session_id;
+    setCookie('session_id', tokens.session_id, 7);
+  }
+}
+
+// Clear tokens
+export function clearTokens() {
+  accessToken = null;
+  sessionId = null;
+  deleteCookie('refresh_token');
+  deleteCookie('session_id');
+  console.log('🗑️ All tokens cleared');
+}
+
+// Get refresh token from cookie
+function getRefreshToken() {
+  return getCookie('refresh_token');
+}
+
+// Get session ID from cookie
+function getSessionId() {
+  return sessionId || getCookie('session_id');
+}
+
+// Get access token
+export function getAccessToken() {
+  return accessToken;
+}
+
+// ============================================
+// INTERCEPTORS
+// ============================================
+
+// Request interceptor - Add access token
 authAxios.interceptors.request.use((config) => {
-  // Get token from localStorage
-  const authData = localStorage.getItem('soutou_auth');
-  if (authData) {
-    try {
-      const parsed = JSON.parse(authData);
-      // Try different token field names
-      const token = parsed.access_token || parsed.token || parsed.access;
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-        console.log('🔑 Token added to request:', config.url);
-      }
-    } catch (e) {
-      console.warn('Failed to parse auth data for token:', e);
-    }
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`;
+    console.log('🔑 Access token added to request:', config.url);
   }
   return config;
 });
 
-// ✅ Response interceptor - Handle token refresh
+// Response interceptor - Handle token refresh
 authAxios.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
     
-    // If error is 401 and we haven't tried to refresh yet
     if (error.response?.status === 401 && !originalRequest._retry) {
-      if (isRefreshing) {
-        // If already refreshing, queue the request
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        })
-        .then(token => {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          return authAxios(originalRequest);
-        })
-        .catch(err => Promise.reject(err));
-      }
-
       originalRequest._retry = true;
-      isRefreshing = true;
 
       try {
-        // Try to refresh the token
-        const refreshToken = localStorage.getItem('soutou_refresh_token');
+        const refreshToken = getRefreshToken();
         if (!refreshToken) {
-          console.warn('⚠️ No refresh token available');
           throw new Error('No refresh token available');
         }
 
         console.log('🔄 Refreshing access token...');
+        
         const response = await authAxios.post('/auth/refresh/', {
           refresh: refreshToken
         }, {
@@ -116,42 +129,30 @@ authAxios.interceptors.response.use(
 
         const newAccessToken = response.data.access || response.data.access_token || response.data.token;
         const newRefreshToken = response.data.refresh || response.data.refresh_token;
+        const newSessionId = response.data.session_id;
         
         if (newAccessToken) {
-          // Save new tokens
-          const authData = JSON.parse(localStorage.getItem('soutou_auth') || '{}');
-          authData.access_token = newAccessToken;
-          authData.token = newAccessToken;
+          accessToken = newAccessToken;
+          
           if (newRefreshToken) {
-            authData.refresh_token = newRefreshToken;
-            localStorage.setItem('soutou_refresh_token', newRefreshToken);
+            setCookie('refresh_token', newRefreshToken, 7);
           }
-          localStorage.setItem('soutou_auth', JSON.stringify(authData));
+          
+          if (newSessionId) {
+            sessionId = newSessionId;
+            setCookie('session_id', newSessionId, 7);
+          }
           
           console.log('✅ Token refreshed successfully');
           
-          // Process queued requests
-          processQueue(null, newAccessToken);
-          
-          // Retry the original request
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
           return authAxios(originalRequest);
-        } else {
-          throw new Error('No token in refresh response');
         }
       } catch (refreshError) {
         console.error('❌ Token refresh failed:', refreshError);
-        processQueue(refreshError, null);
-        
-        // Clear auth data
-        localStorage.removeItem('soutou_auth');
-        localStorage.removeItem('soutou_refresh_token');
-        
-        // Dispatch logout event
+        clearTokens();
         window.dispatchEvent(new CustomEvent('auth:logout'));
         return Promise.reject(refreshError);
-      } finally {
-        isRefreshing = false;
       }
     }
     
@@ -216,7 +217,7 @@ export const variantAPI = {
 };
 
 // ============================================
-// CART API
+// CART API - ADD THIS BACK
 // ============================================
 export const cartAPI = {
   viewCart: () => osimartApi.get('/cart/view/'),
@@ -225,21 +226,27 @@ export const cartAPI = {
     action,
     quantity,
   }),
-  addItem: (item_id, quantity = 1) => cartAPI.updateItem({
-    item_id,
-    action: 'add',
-    quantity,
-  }),
-  removeItem: (item_id, quantity = 1) => cartAPI.updateItem({
-    item_id,
-    action: 'remove',
-    quantity,
-  }),
-  removeAll: (item_id) => cartAPI.updateItem({
-    item_id,
-    action: 'remove_all',
-    quantity: 0,
-  }),
+  addItem: (item_id, quantity = 1) => {
+    return cartAPI.updateItem({
+      item_id,
+      action: 'add',
+      quantity,
+    });
+  },
+  removeItem: (item_id, quantity = 1) => {
+    return cartAPI.updateItem({
+      item_id,
+      action: 'remove',
+      quantity,
+    });
+  },
+  removeAll: (item_id) => {
+    return cartAPI.updateItem({
+      item_id,
+      action: 'remove_all',
+      quantity: 0,
+    });
+  },
 };
 
 // ============================================
@@ -299,6 +306,7 @@ export const authAPI = {
       params: { store: STORE_ID }
     });
   },
+  
   // ✅ REGISTER
   register: (data) => {
     console.log('📝 Register request to Osimart:', data);
@@ -306,50 +314,35 @@ export const authAPI = {
       params: { store: STORE_ID }
     });
   },
-  // ✅ VERIFY - 4-digit code verification
+  
+  // ✅ VERIFY
   verify: (data) => {
     console.log('✅ Verify request to Osimart:', data);
     return authAxios.post('/auth/verify/', data, {
       params: { store: STORE_ID }
     });
   },
-  // ✅ RESEND VERIFICATION CODE - /auth/regen/
+  
+  // ✅ RESEND VERIFICATION
   resendVerification: (data) => {
     console.log('📧 Resend verification request to Osimart:', data);
     return authAxios.post('/auth/regen/', data, {
       params: { store: STORE_ID }
     });
   },
-  // ✅ LOGOUT - Try with session_id and refresh_token
+  
+  // ✅ LOGOUT
   logout: () => {
     console.log('🚪 Logout request to Osimart');
     
-    // Get auth data from localStorage
-    const authData = localStorage.getItem('soutou_auth');
-    let refreshToken = null;
-    let sessionId = null;
-    
-    if (authData) {
-      try {
-        const parsed = JSON.parse(authData);
-        refreshToken = parsed.refresh_token || parsed.refresh;
-        // Get session_id from the user data if available
-        if (parsed.user && parsed.user.session_id) {
-          sessionId = parsed.user.session_id;
-        }
-      } catch (e) {}
-    }
-    
-    // Build the request body
     const body = {};
+    const refreshToken = getRefreshToken();
+    const sessionId = getSessionId();
     
-    // Send refresh token if available
     if (refreshToken) {
-      body.refresh_token = refreshToken;
       body.refresh = refreshToken;
+      body.refresh_token = refreshToken;
     }
-    
-    // Send session_id if available
     if (sessionId) {
       body.session_id = sessionId;
     }
@@ -360,13 +353,7 @@ export const authAPI = {
       params: { store: STORE_ID }
     });
   },
-  // ✅ GUEST REGISTER
-  guestRegister: (data) => {
-    console.log('👤 Guest register request to Osimart:', data);
-    return authAxios.post('/auth/guest/', data, {
-      params: { store: STORE_ID }
-    });
-  },
+  
   // ✅ CHANGE PASSWORD
   changePassword: (data) => {
     console.log('🔑 Change password request to Osimart:', data);
@@ -374,24 +361,12 @@ export const authAPI = {
       params: { store: STORE_ID }
     });
   },
-  // ✅ REFRESH TOKEN
-  refreshToken: (data) => {
-    console.log('🔄 Refresh token request to Osimart');
-    return authAxios.post('/auth/refresh/', data, {
-      params: { store: STORE_ID }
-    });
-  },
-  // ✅ GET PROFILE - Using the correct store API endpoint
+  
+  // ✅ GET PROFILE
   getProfile: () => {
     console.log('👤 Get profile request to Osimart');
-    // Try the auth endpoint instead
-    return authAxios.get('/auth/profile/', {
+    return osimartApi.get('/customers/profile/', {
       params: { store: STORE_ID }
-    }).catch(() => {
-      // Fallback to store API
-      return osimartApi.get('/customers/profile/', {
-        params: { store: STORE_ID }
-      });
     });
   },
 };
@@ -411,4 +386,7 @@ export function prefixEmail(email) {
   return email.startsWith(EMAIL_PREFIX) ? email : `${EMAIL_PREFIX}${email}`;
 }
 
+// ============================================
+// DEFAULT EXPORT
+// ============================================
 export default osimartApi;
