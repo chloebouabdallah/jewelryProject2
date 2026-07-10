@@ -139,6 +139,112 @@
           </form>
         </div>
         
+        <!-- Change Password Section -->
+        <div class="bg-white rounded-2xl shadow-md p-6">
+          <h3 class="font-playfair text-xl font-semibold text-stone-800 mb-4 flex items-center gap-2">
+            <i class="fas fa-key text-amber-600"></i> Change Password
+          </h3>
+          
+          <form @submit.prevent="handleChangePassword" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-stone-700 text-sm mb-2">Current Password</label>
+                <div class="relative">
+                  <input 
+                    :type="showCurrentPassword ? 'text' : 'password'"
+                    v-model="passwordForm.currentPassword"
+                    required
+                    class="w-full px-4 py-2 pr-10 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                    placeholder="Enter current password"
+                  >
+                  <button 
+                    type="button"
+                    @click="showCurrentPassword = !showCurrentPassword"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                  >
+                    <i :class="showCurrentPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label class="block text-stone-700 text-sm mb-2">New Password</label>
+                <div class="relative">
+                  <input 
+                    :type="showNewPassword ? 'text' : 'password'"
+                    v-model="passwordForm.newPassword"
+                    required
+                    minlength="6"
+                    class="w-full px-4 py-2 pr-10 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                    placeholder="Enter new password (min 6 characters)"
+                  >
+                  <button 
+                    type="button"
+                    @click="showNewPassword = !showNewPassword"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                  >
+                    <i :class="showNewPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                  </button>
+                </div>
+                <div class="mt-1 flex items-center gap-2">
+                  <div class="flex-1 h-1 bg-stone-200 rounded-full overflow-hidden">
+                    <div 
+                      class="h-full transition-all duration-300 rounded-full"
+                      :class="passwordStrengthClass"
+                      :style="{ width: passwordStrength + '%' }"
+                    ></div>
+                  </div>
+                  <span class="text-xs text-stone-500">{{ passwordStrengthLabel }}</span>
+                </div>
+              </div>
+              <div>
+                <label class="block text-stone-700 text-sm mb-2">Confirm New Password</label>
+                <div class="relative">
+                  <input 
+                    :type="showConfirmPassword ? 'text' : 'password'"
+                    v-model="passwordForm.confirmPassword"
+                    required
+                    minlength="6"
+                    class="w-full px-4 py-2 pr-10 border rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                    :class="confirmPasswordClass"
+                    placeholder="Confirm new password"
+                  >
+                  <button 
+                    type="button"
+                    @click="showConfirmPassword = !showConfirmPassword"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                  >
+                    <i :class="showConfirmPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                  </button>
+                </div>
+                <p v-if="passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword" class="text-red-500 text-xs mt-1">
+                  <i class="fas fa-exclamation-circle mr-1"></i> Passwords do not match
+                </p>
+                <p v-if="passwordForm.confirmPassword && passwordForm.newPassword === passwordForm.confirmPassword && passwordForm.newPassword.length >= 6" class="text-green-500 text-xs mt-1">
+                  <i class="fas fa-check-circle mr-1"></i> Passwords match
+                </p>
+              </div>
+            </div>
+            
+            <div v-if="passwordError" class="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">
+              <i class="fas fa-exclamation-circle mr-2"></i> {{ passwordError }}
+            </div>
+            
+            <div v-if="passwordSuccess" class="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-lg text-sm">
+              <i class="fas fa-check-circle mr-2"></i> {{ passwordSuccess }}
+            </div>
+            
+            <button 
+              type="submit" 
+              :disabled="isChangingPassword || !isPasswordFormValid"
+              class="bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300 disabled:cursor-not-allowed text-white px-6 py-2 rounded-full transition font-medium text-sm"
+            >
+              <i v-if="isChangingPassword" class="fas fa-spinner fa-spin mr-2"></i>
+              <i v-else class="fas fa-key mr-2"></i>
+              {{ isChangingPassword ? 'Changing Password...' : 'Change Password' }}
+            </button>
+          </form>
+        </div>
+        
         <!-- Preferences Section -->
         <div class="bg-white rounded-2xl shadow-md p-6">
           <h3 class="font-playfair text-xl font-semibold text-stone-800 mb-4 flex items-center gap-2">
@@ -215,7 +321,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
 
@@ -226,6 +332,20 @@ useScrollAnimation()
 const fileInput = ref(null)
 const profileImage = ref(null)
 const isUploading = ref(false)
+
+// Password Form
+const passwordForm = ref({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
+const showCurrentPassword = ref(false)
+const showNewPassword = ref(false)
+const showConfirmPassword = ref(false)
+const isChangingPassword = ref(false)
+const passwordError = ref('')
+const passwordSuccess = ref('')
 
 // Edit Form
 const editForm = ref({
@@ -240,6 +360,52 @@ const preferences = ref({
   newsletter: true,
   darkMode: false,
   currency: 'USD'
+})
+
+// Password strength computed
+const passwordStrength = computed(() => {
+  const pwd = passwordForm.value.newPassword
+  if (!pwd) return 0
+  
+  let score = 0
+  if (pwd.length >= 6) score += 20
+  if (pwd.length >= 8) score += 20
+  if (/[a-z]/.test(pwd) && /[A-Z]/.test(pwd)) score += 20
+  if (/\d/.test(pwd)) score += 20
+  if (/[^a-zA-Z0-9]/.test(pwd)) score += 20
+  
+  return Math.min(score, 100)
+})
+
+const passwordStrengthLabel = computed(() => {
+  const score = passwordStrength.value
+  if (score === 0) return 'None'
+  if (score < 30) return 'Weak'
+  if (score < 60) return 'Fair'
+  if (score < 80) return 'Good'
+  return 'Strong'
+})
+
+const passwordStrengthClass = computed(() => {
+  const score = passwordStrength.value
+  if (score === 0) return 'bg-stone-200'
+  if (score < 30) return 'bg-red-500'
+  if (score < 60) return 'bg-yellow-500'
+  if (score < 80) return 'bg-blue-500'
+  return 'bg-green-500'
+})
+
+const confirmPasswordClass = computed(() => {
+  if (!passwordForm.value.confirmPassword) return 'border-amber-200'
+  if (passwordForm.value.newPassword === passwordForm.value.confirmPassword) return 'border-green-500'
+  return 'border-red-500'
+})
+
+const isPasswordFormValid = computed(() => {
+  return passwordForm.value.currentPassword.length >= 6 &&
+         passwordForm.value.newPassword.length >= 6 &&
+         passwordForm.value.confirmPassword.length >= 6 &&
+         passwordForm.value.newPassword === passwordForm.value.confirmPassword
 })
 
 // Load user data on mount
@@ -388,6 +554,72 @@ const updateProfile = () => {
   
   console.log('✅ Profile saved')
   alert('✅ Profile updated successfully!')
+}
+
+// ============================================
+// CHANGE PASSWORD - FIXED
+// ============================================
+const handleChangePassword = async () => {
+  // Clear previous messages
+  passwordError.value = ''
+  passwordSuccess.value = ''
+  
+  // Validate passwords match
+  if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
+    passwordError.value = 'New passwords do not match.'
+    return
+  }
+  
+  // Validate password length
+  if (passwordForm.value.newPassword.length < 6) {
+    passwordError.value = 'New password must be at least 6 characters.'
+    return
+  }
+  
+  // Validate current password
+  if (passwordForm.value.currentPassword.length < 6) {
+    passwordError.value = 'Current password must be at least 6 characters.'
+    return
+  }
+  
+  isChangingPassword.value = true
+  
+  try {
+    // Debug - check auth state
+    console.log('🔍 Auth state before password change:')
+    console.log('  isAuthenticated:', authStore.isAuthenticated)
+    console.log('  user:', authStore.user?.email)
+    console.log('  token:', authStore.token ? 'Present' : 'Missing')
+    
+    const result = await authStore.changePassword(
+      passwordForm.value.currentPassword,
+      passwordForm.value.newPassword
+    )
+    
+    console.log('✅ Password changed successfully:', result)
+    
+    passwordSuccess.value = 'Password changed successfully!'
+    passwordError.value = ''
+    
+    // Clear the form
+    passwordForm.value = {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    }
+    
+    // Clear success message after 5 seconds
+    setTimeout(() => {
+      passwordSuccess.value = ''
+    }, 5000)
+    
+  } catch (error) {
+    console.error('❌ Password change failed:', error)
+    passwordError.value = error || 'Failed to change password. Please try again.'
+    passwordSuccess.value = ''
+  } finally {
+    isChangingPassword.value = false
+  }
 }
 
 // Save preferences when changed
