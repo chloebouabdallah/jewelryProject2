@@ -10,23 +10,15 @@
         <p class="text-stone-600 mt-4">Complete your order to receive your beautiful jewelry</p>
       </div>
       
-      <!-- Login Required for Checkout -->
-      <div v-if="!authStore.isAuthenticated" class="bg-white rounded-2xl shadow-md p-8 text-center">
-        <i class="fas fa-lock text-5xl text-amber-400 mb-4"></i>
-        <h2 class="text-xl font-semibold text-stone-800 mb-2">Login to Checkout</h2>
-        <p class="text-stone-600 mb-6">Please login or sign up to complete your purchase.</p>
-        <div class="flex gap-4 justify-center">
-          <button @click="authStore.openAuthModal('login')" class="bg-amber-600 text-white px-6 py-2 rounded-full hover:bg-amber-700 transition">
-            Login
-          </button>
-          <button @click="authStore.openAuthModal('signup')" class="border-2 border-amber-600 text-amber-600 px-6 py-2 rounded-full hover:bg-amber-600 hover:text-white transition">
-            Sign Up
-          </button>
-        </div>
+      <!-- Back to Cart Link -->
+      <div class="mb-6">
+        <router-link to="/cart" class="text-amber-600 hover:text-amber-700 transition">
+          <i class="fas fa-arrow-left mr-2"></i> Back to Cart
+        </router-link>
       </div>
       
       <!-- Loading State -->
-      <div v-else-if="isLoadingData" class="text-center py-20">
+      <div v-if="isLoadingData" class="text-center py-20">
         <i class="fas fa-spinner fa-spin text-4xl text-amber-600"></i>
         <p class="text-stone-500 mt-4">Loading checkout data...</p>
       </div>
@@ -41,74 +33,101 @@
         </button>
       </div>
       
-      <!-- Checkout Content (when logged in) -->
+      <!-- Checkout Content -->
       <div v-else class="flex flex-col lg:flex-row gap-10">
         
         <!-- Left Column: Checkout Form -->
         <div class="flex-1">
-          <!-- Shipping Information -->
+          
+          <!-- ✅ Contact Information -->
           <div class="bg-white rounded-2xl shadow-md p-6 mb-6">
-            <h3 class="text-xl font-playfair font-semibold text-stone-800 mb-4">Shipping Information</h3>
+            <h3 class="text-xl font-playfair font-semibold text-stone-800 mb-4">Contact Information</h3>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label class="block text-stone-700 text-sm mb-2">First Name *</label>
                 <input 
                   type="text" 
-                  v-model="shippingInfo.firstName" 
+                  v-model="checkoutForm.firstName" 
                   required
                   class="w-full px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                  placeholder="First name"
                 >
               </div>
               <div>
                 <label class="block text-stone-700 text-sm mb-2">Last Name *</label>
                 <input 
                   type="text" 
-                  v-model="shippingInfo.lastName" 
+                  v-model="checkoutForm.lastName" 
                   required
                   class="w-full px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                  placeholder="Last name"
                 >
               </div>
-              <div class="md:col-span-2">
-                <label class="block text-stone-700 text-sm mb-2">Email Address *</label>
+              <div>
+                <label class="block text-stone-700 text-sm mb-2">Email *</label>
                 <input 
                   type="email" 
-                  v-model="shippingInfo.email" 
+                  v-model="checkoutForm.email" 
                   required
                   class="w-full px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                  placeholder="your@email.com"
                 >
               </div>
-              <div class="md:col-span-2">
-                <label class="block text-stone-700 text-sm mb-2">Street Address *</label>
+            </div>
+            
+            <!-- ✅ Phone Number - Required -->
+            <div class="mt-4">
+              <label class="block text-stone-700 text-sm mb-2">Phone Number *</label>
+              <div class="flex gap-2">
+                <select v-model="checkoutForm.countryCode" class="w-24 px-2 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none">
+                  <option value="+961">+961</option>
+                  <option value="+1">+1</option>
+                  <option value="+44">+44</option>
+                  <option value="+33">+33</option>
+                  <option value="+971">+971</option>
+                  <option value="+966">+966</option>
+                  <option value="+20">+20</option>
+                  <option value="+90">+90</option>
+                  <option value="+972">+972</option>
+                </select>
                 <input 
-                  type="text" 
-                  v-model="shippingInfo.address" 
+                  type="tel" 
+                  v-model="checkoutForm.phone" 
                   required
-                  class="w-full px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                  class="flex-1 px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                  placeholder="Phone number"
                 >
               </div>
-              <div>
-                <label class="block text-stone-700 text-sm mb-2">City *</label>
-                <input 
-                  type="text" 
-                  v-model="shippingInfo.city" 
-                  required
-                  class="w-full px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
-                >
-              </div>
-              <div>
-                <label class="block text-stone-700 text-sm mb-2">Postal Code *</label>
-                <input 
-                  type="text" 
-                  v-model="shippingInfo.postalCode" 
-                  required
-                  class="w-full px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
-                >
-              </div>
+            </div>
+            
+            <!-- Newsletter Signup -->
+            <div class="mt-4 pt-4 border-t border-amber-100">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" v-model="checkoutForm.newsletter" class="w-4 h-4 text-amber-600 rounded">
+                <span class="text-sm text-stone-600">Sign up for exclusive discounts and updates via email. Unsubscribe anytime.</span>
+              </label>
+            </div>
+          </div>
+          
+          <!-- ✅ Delivery Address -->
+          <div class="bg-white rounded-2xl shadow-md p-6 mb-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-xl font-playfair font-semibold text-stone-800">Delivery Address</h3>
+              <!-- ✅ Already have an address? log in -->
+              <button 
+                @click="handleLoginRedirect"
+                class="text-sm text-amber-600 hover:text-amber-700 hover:underline transition"
+              >
+                Already have an address? log in
+              </button>
+            </div>
+            
+            <div class="grid grid-cols-1 gap-4">
               <div>
                 <label class="block text-stone-700 text-sm mb-2">Country *</label>
                 <select 
-                  v-model="shippingInfo.countryId" 
+                  v-model="checkoutForm.countryId" 
                   @change="onCountryChange"
                   required
                   class="w-full px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
@@ -120,19 +139,31 @@
                 </select>
               </div>
               <div>
-                <label class="block text-stone-700 text-sm mb-2">Phone Number</label>
+                <label class="block text-stone-700 text-sm mb-2">Address *</label>
                 <input 
-                  type="tel" 
-                  v-model="shippingInfo.phone" 
+                  type="text" 
+                  v-model="checkoutForm.address" 
+                  required
                   class="w-full px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                  placeholder="Street address"
+                >
+              </div>
+              <div>
+                <label class="block text-stone-700 text-sm mb-2">Post Code / Zip Code *</label>
+                <input 
+                  type="text" 
+                  v-model="checkoutForm.postalCode" 
+                  required
+                  class="w-full px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                  placeholder="Postal / Zip code"
                 >
               </div>
             </div>
           </div>
           
-          <!-- Payment Method -->
+          <!-- ✅ Select Payment Method -->
           <div class="bg-white rounded-2xl shadow-md p-6">
-            <h3 class="text-xl font-playfair font-semibold text-stone-800 mb-4">Payment Method</h3>
+            <h3 class="text-xl font-playfair font-semibold text-stone-800 mb-4">Select Payment Method</h3>
             
             <div v-if="paymentMethods.length === 0" class="text-center py-4 text-stone-500">
               No payment methods available
@@ -143,16 +174,15 @@
                 v-for="method in paymentMethods" 
                 :key="method.id"
                 class="flex items-center gap-3 cursor-pointer p-4 border rounded-lg hover:bg-amber-50 transition"
-                :class="paymentMethod === method.id ? 'border-amber-400 bg-amber-50' : 'border-amber-200'"
+                :class="checkoutForm.paymentMethod === method.id ? 'border-amber-400 bg-amber-50' : 'border-amber-200'"
               >
                 <input 
                   type="radio" 
                   :value="method.id" 
-                  v-model="paymentMethod" 
+                  v-model="checkoutForm.paymentMethod" 
                   class="w-4 h-4 text-amber-600 flex-shrink-0"
                 >
                 <div class="flex items-center gap-3 flex-1">
-                  <!-- Payment Method Icon -->
                   <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
                     <i :class="getPaymentIcon(method)" class="text-amber-600 text-lg"></i>
                   </div>
@@ -172,29 +202,6 @@
                 </div>
               </label>
             </div>
-            
-            <!-- Selected Payment Method Details -->
-            <div v-if="selectedPaymentMethod" class="mt-6 pt-4 border-t border-amber-100">
-              <div class="bg-amber-50 p-4 rounded-lg">
-                <div class="flex items-start gap-3">
-                  <i class="fas fa-info-circle text-amber-600 mt-0.5"></i>
-                  <div>
-                    <p class="text-sm text-stone-700">
-                      <span class="font-semibold">{{ selectedPaymentMethod.display_name || selectedPaymentMethod.name }}</span>
-                      {{ selectedPaymentMethod.detailed_description || selectedPaymentMethod.description || 'Selected payment method will be processed.' }}
-                    </p>
-                    <p v-if="selectedPaymentMethod.is_cod" class="text-sm text-green-600 mt-1">
-                      <i class="fas fa-check-circle mr-1"></i>
-                      Pay in cash when your order is delivered
-                    </p>
-                    <p v-if="selectedPaymentMethod.fee && selectedPaymentMethod.fee > 0" class="text-sm text-stone-600 mt-1">
-                      <i class="fas fa-dollar-sign text-amber-600 mr-1"></i>
-                      Processing Fee: ${{ selectedPaymentMethod.fee.toFixed(2) }}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
         
@@ -203,10 +210,10 @@
           <div class="bg-white rounded-2xl shadow-md p-6 sticky top-32">
             <h3 class="text-xl font-playfair font-semibold text-stone-800 mb-4">Order Summary</h3>
             
-            <!-- Order Items Preview -->
+            <!-- Order Items -->
             <div class="max-h-60 overflow-y-auto mb-4 space-y-2 border-b border-amber-100 pb-4">
               <div v-for="item in cartStore.items" :key="item.id" class="flex justify-between text-sm">
-                <span class="text-stone-600">{{ item.name }} x{{ item.quantity }}</span>
+                <span class="text-stone-600">{{ item.quantity }} x {{ item.name }}</span>
                 <span class="text-stone-800">${{ (item.price * item.quantity).toLocaleString() }}</span>
               </div>
             </div>
@@ -232,21 +239,22 @@
             </div>
             
             <div class="flex justify-between text-stone-800 font-bold text-lg pt-4">
-              <span>Total</span>
+              <span>Order Total</span>
               <span>${{ calculateTotal().toFixed(2) }}</span>
             </div>
             
+            <!-- Complete Order Button -->
             <button 
               @click="placeOrder" 
-              :disabled="isProcessing || !shippingInfo.countryId || !paymentMethod"
-              class="w-full mt-6 bg-gradient-to-r from-amber-600 to-amber-500 text-white py-3 rounded-full font-semibold hover:scale-[1.02] transition shadow-md disabled:opacity-50"
+              :disabled="isProcessing || !isFormValid || cartStore.items.length === 0"
+              class="w-full mt-6 bg-gradient-to-r from-amber-600 to-amber-500 text-white py-3 rounded-full font-semibold hover:scale-[1.02] transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <span v-if="!isProcessing">Place Order</span>
+              <span v-if="!isProcessing">Complete Order</span>
               <span v-else><i class="fas fa-spinner fa-spin mr-2"></i> Processing...</span>
             </button>
             
             <p class="text-xs text-stone-500 text-center mt-4">
-              By placing your order, you agree to our Terms of Service and Privacy Policy.
+              By signing up or placing an order, you're consenting to our privacy policy.
             </p>
           </div>
         </div>
@@ -274,25 +282,34 @@ useScrollAnimation()
 const isProcessing = ref(false)
 const isLoadingData = ref(false)
 const error = ref(null)
-const paymentMethod = ref('')
 const countries = ref([])
 const paymentMethods = ref([])
 
-const shippingInfo = ref({
+// Checkout Form
+const checkoutForm = ref({
   firstName: '',
   lastName: '',
   email: '',
   address: '',
-  city: '',
   postalCode: '',
   countryId: '',
-  phone: ''
+  phone: '',
+  countryCode: '+961',
+  paymentMethod: '',
+  newsletter: false
 })
 
-const cardInfo = ref({
-  number: '',
-  expiry: '',
-  cvv: ''
+// Form validation
+const isFormValid = computed(() => {
+  const form = checkoutForm.value
+  return form.firstName && 
+         form.lastName && 
+         form.email && 
+         form.address && 
+         form.postalCode && 
+         form.countryId && 
+         form.phone && 
+         form.paymentMethod
 })
 
 // Payment method icon mapping
@@ -325,24 +342,22 @@ const isCODPayment = (method) => {
 
 // Get selected country details
 const selectedCountry = computed(() => {
-  return countries.value.find(c => c.id === shippingInfo.value.countryId)
+  return countries.value.find(c => c.id === checkoutForm.value.countryId)
 })
 
 // Get selected payment method details
 const selectedPaymentMethod = computed(() => {
-  return paymentMethods.value.find(m => m.id === paymentMethod.value)
+  return paymentMethods.value.find(m => m.id === checkoutForm.value.paymentMethod)
 })
 
 // Calculate total with fees
 const calculateTotal = () => {
   let total = cartStore.total
   
-  // Add shipping fee
   if (selectedCountry.value?.shipment_price) {
     total += selectedCountry.value.shipment_price
   }
   
-  // Add payment method fee
   if (selectedPaymentMethod.value?.fee) {
     total += selectedPaymentMethod.value.fee
   }
@@ -352,16 +367,20 @@ const calculateTotal = () => {
 
 // Handle country change
 const onCountryChange = () => {
-  // If country has a default payment method, auto-select it
   if (selectedCountry.value?.default_payment_method_id) {
     const defaultMethod = paymentMethods.value.find(m => m.id === selectedCountry.value.default_payment_method_id)
     if (defaultMethod) {
-      paymentMethod.value = defaultMethod.id
+      checkoutForm.value.paymentMethod = defaultMethod.id
     }
   }
 }
 
-// Load checkout data from Osimart
+// ✅ Handle Login Redirect
+const handleLoginRedirect = () => {
+  authStore.openAuthModal('login')
+}
+
+// Load checkout data
 const loadCheckoutData = async () => {
   isLoadingData.value = true
   error.value = null
@@ -369,7 +388,6 @@ const loadCheckoutData = async () => {
   try {
     // Fetch countries
     const countriesResponse = await shippingAPI.getCountries()
-    console.log('✅ Countries fetched:', countriesResponse.data)
     
     let countryData = []
     if (countriesResponse.data && countriesResponse.data.results) {
@@ -390,11 +408,8 @@ const loadCheckoutData = async () => {
       is_active: country.is_active !== false,
     }))
     
-    console.log('✅ Countries loaded:', countries.value.length)
-    
     // Fetch payment methods
     const paymentResponse = await paymentAPI.getAvailablePaymentMethods()
-    console.log('✅ Payment methods fetched:', paymentResponse.data)
     
     let paymentData = []
     if (paymentResponse.data && paymentResponse.data.results) {
@@ -423,21 +438,18 @@ const loadCheckoutData = async () => {
       }
     })
     
-    console.log('✅ Payment methods loaded:', paymentMethods.value.length)
-    console.log('📋 Payment methods:', paymentMethods.value.map(m => ({ name: m.name, display_name: m.display_name, is_cod: m.is_cod })))
-    
     // Auto-select default payment method
     const defaultMethod = paymentMethods.value.find(m => m.is_default)
     if (defaultMethod) {
-      paymentMethod.value = defaultMethod.id
+      checkoutForm.value.paymentMethod = defaultMethod.id
     } else if (paymentMethods.value.length > 0) {
-      paymentMethod.value = paymentMethods.value[0].id
+      checkoutForm.value.paymentMethod = paymentMethods.value[0].id
     }
     
-    // Set default country (Lebanon if available, otherwise first)
+    // Set default country
     const defaultCountry = countries.value.find(c => c.country_name === 'Lebanon') || countries.value[0]
     if (defaultCountry) {
-      shippingInfo.value.countryId = defaultCountry.id
+      checkoutForm.value.countryId = defaultCountry.id
     }
     
   } catch (err) {
@@ -448,7 +460,7 @@ const loadCheckoutData = async () => {
   }
 }
 
-// Send order notification email to store owner
+// Send order emails
 const sendOrderEmail = async () => {
   const orderItems = cartStore.items.map(item => 
     `${item.name} x${item.quantity} - $${(item.price * item.quantity).toLocaleString()}`
@@ -456,8 +468,8 @@ const sendOrderEmail = async () => {
 
   const templateParams = {
     to_email: 'chloebouabdallah1@gmail.com',
-    customer_email: shippingInfo.value.email,
-    subject: `New Order from ${shippingInfo.value.firstName} ${shippingInfo.value.lastName}`,
+    customer_email: checkoutForm.value.email,
+    subject: `New Order from ${checkoutForm.value.firstName} ${checkoutForm.value.lastName}`,
     message: `
 =====================================
 NEW ORDER RECEIVED
@@ -465,15 +477,15 @@ NEW ORDER RECEIVED
 
 CUSTOMER INFORMATION:
 -------------------
-Name: ${shippingInfo.value.firstName} ${shippingInfo.value.lastName}
-Email: ${shippingInfo.value.email}
-Phone: ${shippingInfo.value.phone || 'Not provided'}
+Name: ${checkoutForm.value.firstName} ${checkoutForm.value.lastName}
+Email: ${checkoutForm.value.email}
+Phone: ${checkoutForm.value.countryCode || ''} ${checkoutForm.value.phone || 'Not provided'}
 
 SHIPPING ADDRESS:
 ----------------
-${shippingInfo.value.address}
-${shippingInfo.value.city}, ${shippingInfo.value.postalCode}
-${selectedCountry.value?.country_name || shippingInfo.value.countryId}
+${checkoutForm.value.address}
+${selectedCountry.value?.country_name || checkoutForm.value.countryId}
+Post Code: ${checkoutForm.value.postalCode}
 
 ORDER DETAILS:
 -------------
@@ -481,7 +493,7 @@ ${orderItems}
 
 PAYMENT METHOD:
 --------------
-${selectedPaymentMethod.value?.display_name || selectedPaymentMethod.value?.name || paymentMethod.value}
+${selectedPaymentMethod.value?.display_name || selectedPaymentMethod.value?.name || checkoutForm.value.paymentMethod}
 ${selectedPaymentMethod.value?.is_cod ? ' (Cash on Delivery)' : ''}
 
 ORDER SUMMARY:
@@ -496,7 +508,7 @@ TOTAL: $${calculateTotal().toFixed(2)}
 Thank you for shopping at SOUTOU!
 =====================================
     `,
-    reply_to: shippingInfo.value.email
+    reply_to: checkoutForm.value.email
   }
 
   try {
@@ -506,7 +518,6 @@ Thank you for shopping at SOUTOU!
       templateParams,
       import.meta.env.VITE_EMAILJS_PUBLIC_KEY
     )
-    console.log('Order email sent successfully')
     return true
   } catch (error) {
     console.error('Failed to send order email:', error)
@@ -514,22 +525,21 @@ Thank you for shopping at SOUTOU!
   }
 }
 
-// Send order confirmation email to customer
 const sendCustomerConfirmationEmail = async () => {
   const orderItems = cartStore.items.map(item => 
     `${item.name} x${item.quantity} - $${(item.price * item.quantity).toLocaleString()}`
   ).join('\n')
 
   const templateParams = {
-    to_email: shippingInfo.value.email,
-    customer_name: `${shippingInfo.value.firstName} ${shippingInfo.value.lastName}`,
+    to_email: checkoutForm.value.email,
+    customer_name: `${checkoutForm.value.firstName} ${checkoutForm.value.lastName}`,
     subject: 'Your SOUTOU Order Confirmation',
     message: `
 =====================================
 ORDER CONFIRMATION - SOUTOU
 =====================================
 
-Dear ${shippingInfo.value.firstName},
+Dear ${checkoutForm.value.firstName},
 
 Thank you for your order! We're preparing your beautiful jewelry.
 
@@ -539,13 +549,13 @@ ${orderItems}
 
 SHIPPING ADDRESS:
 ----------------
-${shippingInfo.value.address}
-${shippingInfo.value.city}, ${shippingInfo.value.postalCode}
-${selectedCountry.value?.country_name || shippingInfo.value.countryId}
+${checkoutForm.value.address}
+${selectedCountry.value?.country_name || checkoutForm.value.countryId}
+Post Code: ${checkoutForm.value.postalCode}
 
 PAYMENT METHOD:
 --------------
-${selectedPaymentMethod.value?.display_name || selectedPaymentMethod.value?.name || paymentMethod.value}
+${selectedPaymentMethod.value?.display_name || selectedPaymentMethod.value?.name || checkoutForm.value.paymentMethod}
 
 ORDER SUMMARY:
 -------------
@@ -571,7 +581,6 @@ We'll notify you when your order ships!
       templateParams,
       import.meta.env.VITE_EMAILJS_PUBLIC_KEY
     )
-    console.log('Customer confirmation email sent')
     return true
   } catch (error) {
     console.error('Failed to send customer confirmation email:', error)
@@ -579,62 +588,39 @@ We'll notify you when your order ships!
   }
 }
 
+// Place Order
 const placeOrder = async () => {
-  // Validate shipping info
-  if (!shippingInfo.value.firstName || !shippingInfo.value.lastName || !shippingInfo.value.email || 
-      !shippingInfo.value.address || !shippingInfo.value.city || !shippingInfo.value.postalCode || 
-      !shippingInfo.value.countryId) {
-    alert('Please fill in all shipping information fields.')
+  if (!isFormValid.value) {
+    alert('Please fill in all required fields.')
     return
   }
-  
-  // Validate email format
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailRegex.test(shippingInfo.value.email)) {
-    alert('Please enter a valid email address.')
+
+  if (cartStore.items.length === 0) {
+    alert('Your cart is empty.')
     return
   }
-  
-  // Validate payment method
-  if (!paymentMethod.value) {
-    alert('Please select a payment method.')
-    return
-  }
-  
+
   isProcessing.value = true
   
   try {
-    // Build order data for Osimart API
     const orderData = {
-      shipping_first_name: shippingInfo.value.firstName,
-      shipping_last_name: shippingInfo.value.lastName,
-      shipping_email: shippingInfo.value.email,
-      shipping_address: shippingInfo.value.address,
-      shipping_city: shippingInfo.value.city,
-      shipping_postal_code: shippingInfo.value.postalCode,
-      shipping_country_id: shippingInfo.value.countryId,
-      shipping_phone: shippingInfo.value.phone || '',
-      payment_method_id: paymentMethod.value,
+      shipping_first_name: checkoutForm.value.firstName,
+      shipping_last_name: checkoutForm.value.lastName,
+      shipping_email: checkoutForm.value.email,
+      shipping_address: checkoutForm.value.address,
+      shipping_postal_code: checkoutForm.value.postalCode,
+      shipping_country_id: checkoutForm.value.countryId,
+      shipping_phone: checkoutForm.value.phone || '',
+      shipping_country_code: checkoutForm.value.countryCode || '+961',
+      payment_method_id: checkoutForm.value.paymentMethod,
+      newsletter: checkoutForm.value.newsletter || false,
     }
     
-    // Call Osimart checkout API
-    console.log('📦 Submitting order to Osimart API...')
     const checkoutResponse = await checkoutAPI.createCheckout(orderData)
     console.log('✅ Checkout response:', checkoutResponse.data)
     
-    // Send notification email to store owner
-    const emailSent = await sendOrderEmail()
-    if (emailSent) {
-      console.log('✅ Store owner notified')
-    }
-    
-    // Send confirmation email to customer
-    const customerEmailSent = await sendCustomerConfirmationEmail()
-    if (customerEmailSent) {
-      console.log('✅ Customer confirmation sent')
-    }
-    
-    // Clear cart after successful order
+    await sendOrderEmail()
+    await sendCustomerConfirmationEmail()
     await cartStore.clearCart()
     
     const isCOD = selectedPaymentMethod.value?.is_cod

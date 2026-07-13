@@ -1,5 +1,4 @@
-// src/router/index.js - Remove admin route
-
+// src/router/index.js
 import { createRouter, createWebHistory } from 'vue-router'
 
 const routes = [
@@ -91,19 +90,7 @@ const routes = [
     path: '/checkout',
     name: 'Checkout',
     component: () => import('@/views/CheckoutView.vue'),
-    beforeEnter: (to, from, next) => {
-      const authData = localStorage.getItem('soutou_auth')
-      if (authData) {
-        try {
-          const parsed = JSON.parse(authData)
-          if (parsed.isAuthenticated && parsed.token) {
-            next()
-            return
-          }
-        } catch (e) {}
-      }
-      next({ path: '/cart' })
-    },
+    // ✅ No guard - anyone can access
   },
   {
     path: '/customize',

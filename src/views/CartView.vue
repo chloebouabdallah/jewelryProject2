@@ -7,29 +7,14 @@
       <div class="text-center mb-12">
         <h1 class="font-playfair text-4xl md:text-5xl font-light text-stone-800 mb-3">Your Shopping Cart</h1>
         <div class="w-20 h-0.5 bg-amber-500 mx-auto rounded-full"></div>
-        <p v-if="authStore.isAuthenticated && cartStore.items.length > 0" class="text-stone-500 text-sm mt-2">
+        <p v-if="cartStore.items.length > 0" class="text-stone-500 text-sm mt-2">
           <i class="fas fa-chart-line text-amber-500 mr-1"></i>
           {{ cartStore.items.length }} items in your cart
         </p>
       </div>
       
-      <!-- Login Required Message -->
-      <div v-if="!authStore.isAuthenticated" class="bg-white rounded-2xl shadow-md p-8 text-center">
-        <i class="fas fa-lock text-5xl text-amber-400 mb-4"></i>
-        <h2 class="text-xl font-semibold text-stone-800 mb-2">Login to View Your Cart</h2>
-        <p class="text-stone-600 mb-6">Please login or sign up to view and manage your shopping cart.</p>
-        <div class="flex gap-4 justify-center">
-          <button @click="authStore.openAuthModal('login')" class="bg-amber-600 text-white px-6 py-2 rounded-full hover:bg-amber-700 transition">
-            Login
-          </button>
-          <button @click="authStore.openAuthModal('signup')" class="border-2 border-amber-600 text-amber-600 px-6 py-2 rounded-full hover:bg-amber-600 hover:text-white transition">
-            Sign Up
-          </button>
-        </div>
-      </div>
-      
       <!-- Cart Content -->
-      <div v-else>
+      <div>
         <div class="flex flex-col lg:flex-row gap-10">
           <!-- Cart Items Section -->
           <div class="flex-1">
@@ -44,21 +29,18 @@
               
               <div v-else class="divide-y divide-amber-100">
                 <div v-for="item in cartStore.items" :key="item.id" class="p-5 flex gap-4 items-center">
-                  <!-- ✅ Product Image - Clickable -->
+                  <!-- Product Image -->
                   <router-link :to="getProductLink(item)" class="block flex-shrink-0">
                     <img :src="item.image" :alt="item.name" class="w-24 h-24 object-cover rounded-xl hover:opacity-80 transition">
                   </router-link>
                   
                   <div class="flex-1 min-w-0">
-                    <!-- ✅ Product Name - Clickable -->
                     <router-link :to="getProductLink(item)" class="hover:text-amber-600 transition">
                       <h3 class="font-semibold text-stone-800 hover:text-amber-600 truncate">{{ item.name }}</h3>
                     </router-link>
                     
-                    <!-- Display text (variants info) -->
                     <p v-if="item.displayText" class="text-xs text-stone-500 mt-0.5">{{ item.displayText }}</p>
                     
-                    <!-- Metal info -->
                     <div v-if="item.goldWeight || item.silverWeight" class="flex flex-wrap gap-2 mt-1">
                       <span v-if="item.goldWeight && item.goldWeight > 0" class="text-[10px] bg-amber-50 text-stone-500 px-2 py-0.5 rounded-full border border-amber-100">
                         Gold: {{ item.goldWeight }}g
@@ -68,15 +50,12 @@
                       </span>
                     </div>
                     
-                    <!-- Custom item indicator -->
                     <span v-if="item.isCustom" class="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">Custom</span>
                     
-                    <!-- Price -->
                     <div class="flex items-baseline gap-2 mt-1">
                       <p class="text-amber-700 font-bold text-lg">${{ (item.price || 0).toLocaleString() }}</p>
                     </div>
                     
-                    <!-- Quantity Controls -->
                     <div class="flex items-center gap-3 mt-2">
                       <button @click="updateQuantity(item.id, -1)" class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center hover:bg-amber-600 hover:text-white transition">-</button>
                       <span class="w-8 text-center text-stone-700">{{ item.quantity }}</span>
@@ -120,8 +99,9 @@
                 <span>${{ cartStore.total.toFixed(2) }}</span>
               </div>
               
+              <!-- ✅ Proceed to Checkout Button - Direct navigation -->
               <router-link 
-                to="/checkout" 
+                to="/checkout"
                 class="block w-full mt-4 bg-gradient-to-r from-amber-600 to-amber-500 text-white py-3 rounded-full font-semibold hover:scale-[1.02] transition shadow-md text-center"
               >
                 Proceed to Checkout
@@ -142,29 +122,22 @@
 <script setup>
 import { onMounted } from 'vue'
 import { useCartStore } from '@/stores/cart'
-import { useAuthStore } from '@/stores/auth'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
 
 const cartStore = useCartStore()
-const authStore = useAuthStore()
 useScrollAnimation()
 
 // ============================================
-// ✅ Get product link from cart item
+// Get product link from cart item
 // ============================================
 function getProductLink(item) {
-  // If we have a product slug, use it
+  if (!item) return '/collections'
   if (item.product_slug) {
     return `/product/${item.product_slug}`
   }
-  
-  // If we have a product ID, use it
   if (item.product_id) {
     return `/product/${item.product_id}`
   }
-  
-  // If we have a variant ID, try to find the product
-  // For now, use the item id as fallback
   return `/product/${item.id}`
 }
 
@@ -180,7 +153,6 @@ const removeItem = (id) => {
 }
 
 onMounted(() => {
-  // Refresh cart data
   cartStore.fetchCart()
 })
 </script>

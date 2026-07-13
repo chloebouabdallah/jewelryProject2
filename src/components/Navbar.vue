@@ -47,7 +47,6 @@
           <div v-if="userMenuOpen" class="absolute right-0 mt-2 w-52 bg-white rounded-lg shadow-lg py-2 z-50 border border-amber-100">
             <template v-if="authStore.isAuthenticated">
               <div class="px-4 py-2 border-b border-amber-100">
-                <!-- ✅ Show the user's name, not email -->
                 <div class="flex items-center justify-between">
                   <p class="text-sm font-semibold text-stone-800">{{ authStore.currentUser?.name || authStore.currentUser?.email?.split('@')[0] }}</p>
                 </div>
@@ -61,9 +60,40 @@
               
               <button @click="handleLogout" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-amber-50">Logout</button>
             </template>
+            
+            <!-- ✅ GUEST USER SECTION - NEW -->
+            <template v-else-if="guestStore.isGuest">
+              <div class="px-4 py-2 border-b border-amber-100">
+                <div class="flex items-center justify-between">
+                  <p class="text-sm font-semibold text-stone-800">
+                    <i class="fas fa-user text-amber-500 mr-1"></i>
+                    {{ guestStore.guestName }}
+                  </p>
+                </div>
+                <p class="text-xs text-stone-400">Guest User</p>
+                <p class="text-[10px] text-amber-500 mt-0.5">Browsing as guest</p>
+              </div>
+              
+              <button @click="handleGuestLogout" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-amber-50">
+                <i class="fas fa-sign-out-alt mr-2"></i> Leave Guest Mode
+              </button>
+              
+              <button @click="handleLogin" class="block w-full text-left px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 border-t border-amber-100 mt-1 pt-2">
+                <i class="fas fa-sign-in-alt mr-2"></i> Sign In
+              </button>
+            </template>
+            
+            <!-- ✅ NOT LOGGED IN - UPDATED with Guest option -->
             <template v-else>
-              <button @click="handleLogin" class="block w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-amber-50">Login</button>
-              <button @click="handleSignup" class="block w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-amber-50">Sign Up</button>
+              <button @click="handleLogin" class="block w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-amber-50">
+                <i class="fas fa-sign-in-alt mr-2"></i> Login
+              </button>
+              <button @click="handleSignup" class="block w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-amber-50">
+                <i class="fas fa-user-plus mr-2"></i> Sign Up
+              </button>
+              <button @click="openGuestModal" class="block w-full text-left px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 border-t border-amber-100 mt-1 pt-2">
+                <i class="fas fa-user mr-2"></i> Continue as Guest
+              </button>
             </template>
           </div>
         </div>
@@ -99,12 +129,61 @@
         >
           {{ link.name }}
         </router-link>
+        
+        <!-- ✅ MOBILE GUEST / AUTH SECTION - NEW -->
+        <div class="border-t border-amber-200 pt-3 mt-1">
+          <!-- Guest User -->
+          <div v-if="guestStore.isGuest" class="flex items-center justify-between py-2">
+            <div>
+              <p class="text-sm font-semibold text-stone-800">
+                <i class="fas fa-user text-amber-500 mr-1"></i>
+                {{ guestStore.guestName }}
+              </p>
+              <p class="text-xs text-stone-400">Guest</p>
+            </div>
+            <button @click="handleGuestLogout; mobileMenuOpen = false" class="text-red-500 text-sm hover:text-red-700">
+              <i class="fas fa-sign-out-alt"></i>
+            </button>
+          </div>
+          
+          <!-- Not Logged In -->
+          <div v-else-if="!authStore.isAuthenticated" class="flex flex-col gap-2">
+            <button @click="handleLogin; mobileMenuOpen = false" class="text-left py-2 text-stone-700 hover:text-amber-700">
+              <i class="fas fa-sign-in-alt mr-2"></i> Login
+            </button>
+            <button @click="handleSignup; mobileMenuOpen = false" class="text-left py-2 text-stone-700 hover:text-amber-700">
+              <i class="fas fa-user-plus mr-2"></i> Sign Up
+            </button>
+            <button @click="openGuestModal; mobileMenuOpen = false" class="text-left py-2 text-amber-600 hover:text-amber-700 border-t border-amber-100 pt-2">
+              <i class="fas fa-user mr-2"></i> Continue as Guest
+            </button>
+          </div>
+          
+          <!-- Authenticated User - Keep existing behavior -->
+          <div v-else class="flex items-center justify-between py-2">
+            <router-link to="/settings" class="text-sm font-semibold text-stone-800 hover:text-amber-700">
+              <i class="fas fa-user-circle mr-1"></i>
+              {{ authStore.currentUser?.name || authStore.currentUser?.email?.split('@')[0] }}
+            </router-link>
+            <button @click="handleLogout; mobileMenuOpen = false" class="text-red-500 text-sm hover:text-red-700">
+              <i class="fas fa-sign-out-alt"></i>
+            </button>
+          </div>
+        </div>
       </div>
     </Transition>
   </nav>
   
   <SearchBar ref="searchBarRef" />
   <AuthModal />
+  
+  <!-- ✅ GUEST MODAL - NEW -->
+  <GuestModal 
+    :show="showGuestModal"
+    @close="showGuestModal = false"
+    @success="handleGuestSuccess"
+    @switch-to-login="handleSwitchToLogin"
+  />
 </template>
 
 <script setup>
@@ -112,19 +191,23 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
+import { useGuestStore } from '@/stores/guest'
+import { useWishlistStore } from '@/stores/wishlist'
 import SearchBar from './SearchBar.vue'
 import AuthModal from './AuthModal.vue'
-import { useWishlistStore } from '@/stores/wishlist'
+import GuestModal from './GuestModal.vue'
 
 const router = useRouter()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
+const guestStore = useGuestStore()
 const wishlistStore = useWishlistStore()
 
 const mobileMenuOpen = ref(false)
 const isScrolled = ref(false)
 const userMenuOpen = ref(false)
 const searchBarRef = ref(null)
+const showGuestModal = ref(false)
 
 const navLinks = [
   { name: 'Home', path: '/' },
@@ -153,6 +236,24 @@ const closeUserMenu = () => {
   userMenuOpen.value = false
 }
 
+// ✅ GUEST MODAL HANDLERS - NEW
+const openGuestModal = () => {
+  showGuestModal.value = true
+  userMenuOpen.value = false
+}
+
+const handleGuestSuccess = (guestData) => {
+  console.log('✅ Guest created:', guestData)
+  showGuestModal.value = false
+  const guestEmail = guestData.email || `guest_${guestData.id}`
+  cartStore.setUser(guestEmail)
+}
+
+const handleSwitchToLogin = () => {
+  showGuestModal.value = false
+  authStore.openAuthModal('login')
+}
+
 const handleClickOutside = (event) => {
   const userButton = document.querySelector('.fa-user')?.parentElement
   const userMenu = document.querySelector('.absolute.right-0.mt-2')
@@ -176,6 +277,13 @@ const handleLogout = () => {
   userMenuOpen.value = false
 }
 
+// ✅ GUEST LOGOUT - NEW
+const handleGuestLogout = () => {
+  guestStore.clearGuest()
+  cartStore.clearUserCartDisplay()
+  userMenuOpen.value = false
+}
+
 const goToCart = () => {
   router.push('/cart')
 }
@@ -188,6 +296,15 @@ onMounted(async () => {
   window.addEventListener('scroll', handleScroll)
   document.addEventListener('click', handleClickOutside)
   await authStore.checkAuth()
+  
+  // ✅ Load guest from localStorage
+  guestStore.loadGuestFromLocalStorage()
+  
+  // ✅ If guest exists, set cart user
+  if (guestStore.isGuest && guestStore.currentGuest) {
+    const guestEmail = guestStore.currentGuest.email || `guest_${guestStore.currentGuest.id}`
+    cartStore.setUser(guestEmail)
+  }
 })
 
 onUnmounted(() => {

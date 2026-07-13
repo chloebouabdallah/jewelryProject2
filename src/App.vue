@@ -17,7 +17,12 @@
     
     <ToastNotification />
     <AuthModal @login-success="handleLoginSuccess" />
-    
+    <GuestModal 
+      :show="showGuestModal"
+      @close="showGuestModal = false"
+      @success="handleGuestSuccess"
+      @switch-to-login="handleSwitchToLogin"
+    />
     <ChangePasswordModal 
       :show="showChangePassword"
       @close="showChangePassword = false"
@@ -34,18 +39,21 @@ import Navbar from '@/components/Navbar.vue'
 import Footer from '@/components/Footer.vue'
 import ToastNotification from '@/components/ToastNotification.vue'
 import AuthModal from '@/components/AuthModal.vue'
+import GuestModal from '@/components/GuestModal.vue'
 import ChangePasswordModal from '@/components/ChangePasswordModal.vue'
 import Chatbot from '@/components/Chatbot.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useGuestStore } from '@/stores/guest'
 import { useCartStore } from '@/stores/cart'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const guestStore = useGuestStore()
 const cartStore = useCartStore()
 
 const isFooterVisible = ref(false)
 const footerWrapper = ref(null)
-
+const showGuestModal = ref(false)
 const showChangePassword = ref(false)
 
 const handleLoginSuccess = () => {
@@ -55,7 +63,10 @@ const handleLoginSuccess = () => {
   }
 }
 
-
+const handleGuestSuccess = (guestData) => {
+  console.log('✅ Guest created:', guestData)
+  showGuestModal.value = false
+}
 
 const handleSwitchToLogin = () => {
   showGuestModal.value = false
@@ -87,7 +98,23 @@ watch(
   { immediate: true }
 )
 
-
+onMounted(async () => {
+  await authStore.checkAuth()
+  
+  // Load guest from localStorage
+  guestStore.loadGuestFromLocalStorage()
+  
+  // If guest exists, set it in cart
+  if (guestStore.isGuest && guestStore.currentGuest) {
+    const guestEmail = guestStore.currentGuest.email || `guest_${guestStore.currentGuest.id}`
+    cartStore.setUser(guestEmail)
+  }
+  
+  // Initial load
+  setTimeout(() => {
+    showFooterAndScrollTop()
+  }, 800)
+})
 </script>
 
 <style>
