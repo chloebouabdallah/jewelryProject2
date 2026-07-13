@@ -8,17 +8,22 @@ import {
   EMAIL_PREFIX,
   setTokens,
   clearTokens,
-  getAccessToken
+  getAccessToken,
+  getRefreshToken,
+  isTokenExpired,
+  refreshAccessToken
 } from '@/services/osimart'
-import { getCookie } from '@/utils/cookieHelper';
 
 function cleanPrefix(str) {
   if (!str) return ''
   return str.replace(new RegExp(`^${EMAIL_PREFIX}`), '')
 }
 
+// User data cache key - this is NOT for tokens, just for display name/email
+const USER_CACHE_KEY = 'soutou_user_cache'
+
 export const useAuthStore = defineStore('auth', () => {
-  // State - User data only
+  // User Data: Memory + sessionStorage fallback
   const user = ref(null)
   const isAuthenticated = ref(false)
   const showAuthModal = ref(false)
@@ -28,6 +33,53 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isLoggedIn = computed(() => isAuthenticated.value)
   const currentUser = computed(() => user.value)
+
+  // ============================================
+  // USER CACHE HELPERS (only for display data)
+  // ============================================
+  function cacheUserData(userData) {
+    if (userData) {
+      // Only cache non-sensitive data (name, email, etc.)
+      const cacheData = {
+        id: userData.id,
+        email: userData.email,
+        name: userData.name,
+        firstName: userData.firstName || '',
+        lastName: userData.lastName || '',
+        phone: userData.phone || '',
+        session_id: userData.session_id || '',
+      }
+      try {
+        sessionStorage.setItem(USER_CACHE_KEY, JSON.stringify(cacheData))
+        console.log('💾 User data cached in sessionStorage')
+      } catch (e) {
+        console.warn('Failed to cache user data:', e)
+      }
+    }
+  }
+
+  function getCachedUserData() {
+    try {
+      const cached = sessionStorage.getItem(USER_CACHE_KEY)
+      if (cached) {
+        const data = JSON.parse(cached)
+        console.log('📂 User data restored from cache:', data.email)
+        return data
+      }
+    } catch (e) {
+      console.warn('Failed to get cached user data:', e)
+    }
+    return null
+  }
+
+  function clearCachedUserData() {
+    try {
+      sessionStorage.removeItem(USER_CACHE_KEY)
+      console.log('🗑️ User data cache cleared')
+    } catch (e) {
+      console.warn('Failed to clear user data cache:', e)
+    }
+  }
 
   // ============================================
   // LOGIN
@@ -55,21 +107,17 @@ export const useAuthStore = defineStore('auth', () => {
       let refreshTokenValue = null
       let sessionIdValue = null
 
-      // ✅ Extract tokens and user data from response
       if (response.data) {
-        // Tokens are at the root level
         accessTokenValue = response.data.access_token || null
         refreshTokenValue = response.data.refresh_token || null
         sessionIdValue = response.data.session_id || null
         
-        // User data - check if there's a user object or use root data
         if (response.data.user) {
           userData = response.data.user
         } else {
-          // If no user object, create one from the response data
           userData = {
             id: response.data.user_id,
-            email: email, // We'll use the email we logged in with
+            email: email,
             first_name: response.data.first_name || '',
             last_name: response.data.last_name || '',
             name: response.data.name || '',
@@ -82,9 +130,7 @@ export const useAuthStore = defineStore('auth', () => {
       console.log('🔑 Access token:', accessTokenValue ? 'Yes' : 'No')
       console.log('🔑 Refresh token:', refreshTokenValue ? 'Yes' : 'No')
       console.log('🔑 Session ID:', sessionIdValue ? 'Yes' : 'No')
-      console.log('👤 User data:', userData ? 'Yes' : 'No')
 
-      // If no userData, create a fallback
       if (!userData) {
         console.warn('⚠️ No user data in response, creating fallback')
         userData = {
@@ -96,11 +142,10 @@ export const useAuthStore = defineStore('auth', () => {
 
       if (!accessTokenValue) {
         console.error('❌ No access token received from API!')
-        console.error('📦 Full response:', JSON.stringify(response.data, null, 2))
         throw new Error('No access token received from server. Please try again.')
       }
 
-      // ✅ Store tokens: access in memory, refresh in secure cookie
+      // Store tokens: access in memory, refresh in secure cookie
       setTokens({
         access_token: accessTokenValue,
         refresh_token: refreshTokenValue,
@@ -110,7 +155,6 @@ export const useAuthStore = defineStore('auth', () => {
       const rawEmail = userData.email || email
       const displayEmail = cleanEmail(rawEmail)
 
-      // Build user display name
       let displayName = userData.name || ''
       if (!displayName && userData.first_name && userData.last_name) {
         displayName = `${userData.first_name} ${userData.last_name}`
@@ -118,6 +162,7 @@ export const useAuthStore = defineStore('auth', () => {
         displayName = displayEmail.split('@')[0]
       }
 
+      // User data in memory
       user.value = {
         ...userData,
         id: userData.id || userData.user_id || response.data.user_id || 'user_' + Date.now(),
@@ -130,6 +175,9 @@ export const useAuthStore = defineStore('auth', () => {
         phone: userData.mobile_number || userData.phone || '',
         session_id: sessionIdValue,
       }
+
+      // ✅ Cache user data for recovery on refresh
+      cacheUserData(user.value)
 
       isAuthenticated.value = true
       showAuthModal.value = false
@@ -156,8 +204,6 @@ export const useAuthStore = defineStore('auth', () => {
           errorMessage = err.response.data.detail
         } else if (err.response.data.non_field_errors) {
           errorMessage = err.response.data.non_field_errors.join(', ')
-        } else if (typeof err.response.data === 'string') {
-          errorMessage = err.response.data
         }
       }
 
@@ -169,18 +215,34 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // ============================================
-  // LOGOUT
+  // LOGOUT - With full logging
   // ============================================
   async function logout() {
     try {
-      console.log('🚪 Logging out...')
+      console.log('🚪 Starting logout process...')
+      
+      // Log current token state before logout
+      const refreshToken = getRefreshToken()
+      const accessToken = getAccessToken()
+      console.log('📤 Current tokens before logout:')
+      console.log('  Access token:', accessToken ? 'Yes (length: ' + accessToken.length + ')' : 'No')
+      console.log('  Refresh token:', refreshToken ? 'Yes (length: ' + refreshToken.length + ')' : 'No')
+      
+      // Call logout API
+      console.log('📤 Sending logout request to server...')
       await authAPI.logout()
       console.log('✅ Logout successful on server')
+      
     } catch (err) {
-      console.warn('Logout API call failed:', err.message)
+      console.warn('⚠️ Logout API call failed:', err.response?.status, err.message)
+      if (err.response?.data) {
+        console.warn('  Response data:', err.response.data)
+      }
     } finally {
-      // Clear all tokens
+      // Clear all tokens and cache regardless of API result
+      console.log('🗑️ Clearing local tokens and cache...')
       clearTokens()
+      clearCachedUserData()
       
       const cartStore = useCartStore()
       cartStore.clearUserCartDisplay()
@@ -189,7 +251,12 @@ export const useAuthStore = defineStore('auth', () => {
       isAuthenticated.value = false
       showAuthModal.value = false
 
-      console.log('🚪 Logged out successfully')
+      console.log('✅ Logout completed successfully')
+      console.log('👤 User state:')
+      console.log('  isAuthenticated:', isAuthenticated.value)
+      console.log('  user:', user.value)
+      console.log('  accessToken:', getAccessToken())
+      console.log('  refreshToken:', getRefreshToken())
     }
   }
 
@@ -222,7 +289,6 @@ export const useAuthStore = defineStore('auth', () => {
 
       const rawEmailFromAPI = response.data.email || cleanEmailInput
       const displayEmail = cleanEmail(rawEmailFromAPI)
-      const fullName = `${firstName} ${lastName}`
 
       isLoading.value = false
       showAuthModal.value = false
@@ -293,6 +359,7 @@ export const useAuthStore = defineStore('auth', () => {
       phone: userData.phone || '',
     }
 
+    cacheUserData(user.value)
     isAuthenticated.value = true
     
     if (userData.token || userData.accessToken) {
@@ -367,16 +434,94 @@ export const useAuthStore = defineStore('auth', () => {
   async function checkAuth() {
     console.log('🔍 Checking authentication...')
     
-    // Check if we have access token in memory
-    const accessToken = getAccessToken();
-    const refreshToken = getCookie('refresh_token');
+    const accessToken = getAccessToken()
+    const refreshToken = getRefreshToken()
     
+    // ✅ If we have user data and access token in memory, we're authenticated
+    if (user.value && isAuthenticated.value && accessToken && !isTokenExpired()) {
+      console.log('✅ User already authenticated in memory:', user.value.email)
+      return true
+    }
+    
+    // ✅ If we have refresh token, use it to get a new access token FIRST
+    if (refreshToken) {
+      console.log('🔄 Refresh token found, refreshing access token...')
+      try {
+        // Refresh the access token first
+        await refreshAccessToken()
+        console.log('✅ Access token refreshed successfully!')
+        
+        // ✅ Token is valid - user is authenticated
+        isAuthenticated.value = true
+        
+        // ✅ Restore user data from cache if not in memory
+        if (!user.value) {
+          const cachedUser = getCachedUserData()
+          if (cachedUser) {
+            user.value = cachedUser
+            console.log('✅ User data restored from cache:', user.value.email)
+            const cartStore = useCartStore()
+            cartStore.setUser(user.value.email)
+            return true
+          }
+        }
+        
+        // ✅ If we have user data in memory, keep it
+        if (user.value) {
+          console.log('✅ User data preserved:', user.value.email)
+          const cartStore = useCartStore()
+          cartStore.setUser(user.value.email)
+          return true
+        }
+        
+        // ✅ If no user data anywhere, try to fetch profile
+        try {
+          console.log('👤 No user data, trying to fetch profile...')
+          const response = await authAPI.getProfile()
+          if (response.data) {
+            console.log('✅ Profile fetched successfully')
+            const userData = response.data.user || response.data
+            const displayEmail = cleanEmail(userData.email || '')
+            
+            user.value = {
+              ...userData,
+              email: displayEmail,
+              rawEmail: userData.email || '',
+              name: userData.name || userData.first_name + ' ' + userData.last_name || displayEmail.split('@')[0],
+              firstName: userData.first_name || '',
+              lastName: userData.last_name || '',
+              phone: userData.mobile_number || userData.phone || '',
+            }
+            
+            cacheUserData(user.value)
+            const cartStore = useCartStore()
+            cartStore.setUser(user.value.email)
+            return true
+          }
+        } catch (profileError) {
+          console.warn('⚠️ Could not fetch profile, using cached data if available')
+        }
+        
+        // ✅ If we still have no user data, create minimal user from email
+        console.log('✅ Authenticated but no user data available')
+        return true
+      } catch (refreshError) {
+        console.error('❌ Refresh failed:', refreshError.message)
+        clearTokens()
+        clearCachedUserData()
+        user.value = null
+        isAuthenticated.value = false
+        return false
+      }
+    }
+    
+    // ✅ If we have access token but no refresh token, validate it
     if (accessToken) {
-      console.log('✅ Access token found in memory')
+      console.log('⚠️ Access token exists but no refresh token')
       try {
         const response = await authAPI.getProfile()
         if (response.data) {
-          console.log('✅ User is authenticated')
+          console.log('✅ Access token is valid')
           const userData = response.data.user || response.data
           const displayEmail = cleanEmail(userData.email || '')
           
@@ -390,60 +535,26 @@ export const useAuthStore = defineStore('auth', () => {
             phone: userData.mobile_number || userData.phone || '',
           }
           
+          cacheUserData(user.value)
           isAuthenticated.value = true
           const cartStore = useCartStore()
           cartStore.setUser(user.value.email)
           return true
         }
       } catch (err) {
-        console.log('⚠️ Token validation failed:', err.message)
-        // If we have refresh token, try to refresh
-        if (refreshToken) {
-          console.log('🔄 Attempting to refresh with refresh token from cookie')
-          try {
-            // The interceptor will handle the refresh
-            const response = await authAPI.getProfile()
-            if (response.data) {
-              console.log('✅ Token refreshed and user authenticated')
-              return true
-            }
-          } catch (refreshErr) {
-            console.log('❌ Refresh failed, clearing all tokens')
-            clearTokens()
-            user.value = null
-            isAuthenticated.value = false
-            return false
-          }
-        } else {
-          clearTokens()
-          user.value = null
-          isAuthenticated.value = false
-          return false
-        }
-      }
-    } else if (refreshToken) {
-      // We have refresh token but no access token
-      console.log('🔄 No access token but refresh token exists, attempting refresh...')
-      try {
-        // The interceptor will handle the refresh
-        const response = await authAPI.getProfile()
-        if (response.data) {
-          console.log('✅ Token refreshed and user authenticated')
-          return true
-        }
-      } catch (err) {
-        console.log('❌ Refresh failed, clearing tokens')
+        console.log('❌ Access token invalid')
         clearTokens()
+        clearCachedUserData()
         user.value = null
         isAuthenticated.value = false
         return false
       }
-    } else {
-      console.log('👤 No tokens found')
-      user.value = null
-      isAuthenticated.value = false
-      return false
     }
+    
+    console.log('👤 No valid auth found - guest mode')
+    user.value = null
+    isAuthenticated.value = false
+    return false
   }
 
   // ============================================

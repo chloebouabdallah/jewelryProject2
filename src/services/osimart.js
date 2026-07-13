@@ -45,20 +45,24 @@ export const authAxios = axios.create({
 // TOKEN MANAGEMENT
 // ============================================
 
-// Access token - stored in memory only
+// Access Token: Memory only
 let accessToken = null;
 let sessionId = null;
+let tokenExpiry = null;
+let isRefreshing = false;
+let failedQueue = [];
 
-// Set tokens
+// Refresh Token: Secure cookie
 export function setTokens(tokens) {
   if (tokens.access_token) {
     accessToken = tokens.access_token;
-    console.log('🔑 Access token stored in memory');
+    tokenExpiry = Date.now() + 15 * 60 * 1000; // 15 minutes
+    console.log('🔑 Access token stored in memory, expires in 15 minutes');
   }
   
   if (tokens.refresh_token) {
     setCookie('refresh_token', tokens.refresh_token, 7);
-    console.log('🔑 Refresh token stored in secure cookie');
+    console.log('🔑 Refresh token stored in cookie (7 days)');
   }
   
   if (tokens.session_id) {
@@ -67,89 +71,190 @@ export function setTokens(tokens) {
   }
 }
 
-// Clear tokens
 export function clearTokens() {
   accessToken = null;
   sessionId = null;
+  tokenExpiry = null;
+  isRefreshing = false;
+  failedQueue = [];
   deleteCookie('refresh_token');
   deleteCookie('session_id');
   console.log('🗑️ All tokens cleared');
 }
 
-// Get refresh token from cookie
-function getRefreshToken() {
+export function getAccessToken() {
+  return accessToken;
+}
+
+export function getRefreshToken() {
   return getCookie('refresh_token');
 }
 
-// Get session ID from cookie
-function getSessionId() {
+export function getSessionId() {
   return sessionId || getCookie('session_id');
 }
 
-// Get access token
-export function getAccessToken() {
-  return accessToken;
+export function isTokenExpired() {
+  if (!tokenExpiry) return true;
+  return Date.now() >= tokenExpiry;
+}
+
+// ============================================
+// TOKEN REFRESH FUNCTION - OPTIMIZED
+// ============================================
+export async function refreshAccessToken() {
+  // Prevent multiple refresh calls
+  if (isRefreshing) {
+    console.log('⏳ Refresh already in progress, waiting...');
+    return new Promise((resolve, reject) => {
+      failedQueue.push({ resolve, reject });
+    });
+  }
+
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) {
+    console.warn('⚠️ No refresh token available in cookie');
+    clearTokens();
+    throw new Error('No refresh token available');
+  }
+
+  console.log('🔄 Refreshing access token...');
+  
+  isRefreshing = true;
+  
+  try {
+    // ✅ Only use the working format: Authorization header with refresh token
+    const response = await authAxios.post('/auth/refresh/', {}, {
+      params: { store: STORE_ID },
+      headers: {
+        'Authorization': `Bearer ${refreshToken}`
+      }
+    });
+
+    console.log('✅ Refresh response status:', response.status);
+
+    const newAccessToken = response.data.access || response.data.access_token || response.data.token;
+    const newRefreshToken = response.data.refresh || response.data.refresh_token;
+    const newSessionId = response.data.session_id;
+    
+    if (newAccessToken) {
+      // Update tokens
+      accessToken = newAccessToken;
+      tokenExpiry = Date.now() + 15 * 60 * 1000;
+      
+      if (newRefreshToken) {
+        setCookie('refresh_token', newRefreshToken, 7);
+      }
+      
+      if (newSessionId) {
+        sessionId = newSessionId;
+        setCookie('session_id', newSessionId, 7);
+      }
+      
+      console.log('✅ Token refreshed successfully, new expiry:', new Date(tokenExpiry).toLocaleTimeString());
+      
+      // Process queued requests
+      failedQueue.forEach(prom => prom.resolve(newAccessToken));
+      failedQueue = [];
+      
+      return newAccessToken;
+    } else {
+      throw new Error('No access token in refresh response');
+    }
+  } catch (error) {
+    console.error('❌ Token refresh failed:', error.response?.status, error.response?.data || error.message);
+    
+    // Clear all tokens on refresh failure
+    clearTokens();
+    
+    // Reject all queued requests
+    failedQueue.forEach(prom => prom.reject(error));
+    failedQueue = [];
+    
+    // Dispatch logout event
+    window.dispatchEvent(new CustomEvent('auth:logout'));
+    throw error;
+  } finally {
+    isRefreshing = false;
+  }
 }
 
 // ============================================
 // INTERCEPTORS
 // ============================================
 
-// Request interceptor - Add access token
-authAxios.interceptors.request.use((config) => {
+// Request interceptor - Check token before request
+authAxios.interceptors.request.use(async (config) => {
+  // Don't attempt refresh on refresh endpoint itself
+  if (config.url?.includes('/auth/refresh/')) {
+    return config;
+  }
+  
+  // If no access token but we have refresh token, try to refresh
+  if (!accessToken && getRefreshToken()) {
+    console.log('🔄 No access token, attempting refresh...');
+    try {
+      await refreshAccessToken();
+    } catch (error) {
+      console.error('❌ Failed to refresh token:', error);
+    }
+  }
+  
+  // If token is expired, refresh it
+  if (accessToken && isTokenExpired() && getRefreshToken()) {
+    console.log('⏰ Access token expired, refreshing...');
+    try {
+      await refreshAccessToken();
+    } catch (error) {
+      console.error('❌ Failed to refresh expired token:', error);
+    }
+  }
+  
+  // Add token to request if available
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`;
-    console.log('🔑 Access token added to request:', config.url);
   }
+  
   return config;
 });
 
-// Response interceptor - Handle token refresh
+// Response interceptor - Handle 401 errors
 authAxios.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
     
+    // Don't retry refresh endpoint
+    if (originalRequest.url?.includes('/auth/refresh/')) {
+      return Promise.reject(error);
+    }
+    
+    // If error is 401 and we haven't tried to refresh yet
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
+      
+      // Check if we have a refresh token
+      const refreshToken = getRefreshToken();
+      if (!refreshToken) {
+        console.warn('⚠️ No refresh token, logging out');
+        clearTokens();
+        window.dispatchEvent(new CustomEvent('auth:logout'));
+        return Promise.reject(error);
+      }
 
       try {
-        const refreshToken = getRefreshToken();
-        if (!refreshToken) {
-          throw new Error('No refresh token available');
-        }
-
-        console.log('🔄 Refreshing access token...');
+        console.log('🔄 401 received, refreshing token...');
+        await refreshAccessToken();
         
-        const response = await authAxios.post('/auth/refresh/', {
-          refresh: refreshToken
-        }, {
-          params: { store: STORE_ID }
-        });
-
-        const newAccessToken = response.data.access || response.data.access_token || response.data.token;
-        const newRefreshToken = response.data.refresh || response.data.refresh_token;
-        const newSessionId = response.data.session_id;
-        
-        if (newAccessToken) {
-          accessToken = newAccessToken;
-          
-          if (newRefreshToken) {
-            setCookie('refresh_token', newRefreshToken, 7);
-          }
-          
-          if (newSessionId) {
-            sessionId = newSessionId;
-            setCookie('session_id', newSessionId, 7);
-          }
-          
-          console.log('✅ Token refreshed successfully');
-          
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        // Retry the original request with new token
+        if (accessToken) {
+          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
           return authAxios(originalRequest);
+        } else {
+          throw new Error('No access token after refresh');
         }
       } catch (refreshError) {
-        console.error('❌ Token refresh failed:', refreshError);
+        console.error('❌ Refresh failed, logging out');
         clearTokens();
         window.dispatchEvent(new CustomEvent('auth:logout'));
         return Promise.reject(refreshError);
@@ -217,7 +322,7 @@ export const variantAPI = {
 };
 
 // ============================================
-// CART API - ADD THIS BACK
+// CART API
 // ============================================
 export const cartAPI = {
   viewCart: () => osimartApi.get('/cart/view/'),
@@ -331,13 +436,16 @@ export const authAPI = {
     });
   },
   
-  // ✅ LOGOUT
+  // ✅ LOGOUT - With full logging
   logout: () => {
     console.log('🚪 Logout request to Osimart');
-    
     const body = {};
     const refreshToken = getRefreshToken();
     const sessionId = getSessionId();
+    
+    console.log('📤 Logout data:');
+    console.log('  Refresh token:', refreshToken ? 'Yes (length: ' + refreshToken.length + ')' : 'No');
+    console.log('  Session ID:', sessionId ? 'Yes (length: ' + sessionId.length + ')' : 'No');
     
     if (refreshToken) {
       body.refresh = refreshToken;
