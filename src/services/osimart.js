@@ -100,10 +100,9 @@ export function isTokenExpired() {
 }
 
 // ============================================
-// TOKEN REFRESH FUNCTION - OPTIMIZED
+// TOKEN REFRESH FUNCTION
 // ============================================
 export async function refreshAccessToken() {
-  // Prevent multiple refresh calls
   if (isRefreshing) {
     console.log('⏳ Refresh already in progress, waiting...');
     return new Promise((resolve, reject) => {
@@ -123,7 +122,6 @@ export async function refreshAccessToken() {
   isRefreshing = true;
   
   try {
-    // ✅ Only use the working format: Authorization header with refresh token
     const response = await authAxios.post('/auth/refresh/', {}, {
       params: { store: STORE_ID },
       headers: {
@@ -138,7 +136,6 @@ export async function refreshAccessToken() {
     const newSessionId = response.data.session_id;
     
     if (newAccessToken) {
-      // Update tokens
       accessToken = newAccessToken;
       tokenExpiry = Date.now() + 15 * 60 * 1000;
       
@@ -153,7 +150,6 @@ export async function refreshAccessToken() {
       
       console.log('✅ Token refreshed successfully, new expiry:', new Date(tokenExpiry).toLocaleTimeString());
       
-      // Process queued requests
       failedQueue.forEach(prom => prom.resolve(newAccessToken));
       failedQueue = [];
       
@@ -163,15 +159,9 @@ export async function refreshAccessToken() {
     }
   } catch (error) {
     console.error('❌ Token refresh failed:', error.response?.status, error.response?.data || error.message);
-    
-    // Clear all tokens on refresh failure
     clearTokens();
-    
-    // Reject all queued requests
     failedQueue.forEach(prom => prom.reject(error));
     failedQueue = [];
-    
-    // Dispatch logout event
     window.dispatchEvent(new CustomEvent('auth:logout'));
     throw error;
   } finally {
@@ -183,14 +173,11 @@ export async function refreshAccessToken() {
 // INTERCEPTORS
 // ============================================
 
-// Request interceptor - Check token before request
 authAxios.interceptors.request.use(async (config) => {
-  // Don't attempt refresh on refresh endpoint itself
   if (config.url?.includes('/auth/refresh/')) {
     return config;
   }
   
-  // If no access token but we have refresh token, try to refresh
   if (!accessToken && getRefreshToken()) {
     console.log('🔄 No access token, attempting refresh...');
     try {
@@ -200,7 +187,6 @@ authAxios.interceptors.request.use(async (config) => {
     }
   }
   
-  // If token is expired, refresh it
   if (accessToken && isTokenExpired() && getRefreshToken()) {
     console.log('⏰ Access token expired, refreshing...');
     try {
@@ -210,7 +196,6 @@ authAxios.interceptors.request.use(async (config) => {
     }
   }
   
-  // Add token to request if available
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`;
   }
@@ -218,22 +203,18 @@ authAxios.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Response interceptor - Handle 401 errors
 authAxios.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
     
-    // Don't retry refresh endpoint
     if (originalRequest.url?.includes('/auth/refresh/')) {
       return Promise.reject(error);
     }
     
-    // If error is 401 and we haven't tried to refresh yet
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       
-      // Check if we have a refresh token
       const refreshToken = getRefreshToken();
       if (!refreshToken) {
         console.warn('⚠️ No refresh token, logging out');
@@ -246,7 +227,6 @@ authAxios.interceptors.response.use(
         console.log('🔄 401 received, refreshing token...');
         await refreshAccessToken();
         
-        // Retry the original request with new token
         if (accessToken) {
           originalRequest.headers.Authorization = `Bearer ${accessToken}`;
           return authAxios(originalRequest);
@@ -401,7 +381,7 @@ export const orderSummariesAPI = {
 };
 
 // ============================================
-// AUTH API
+// AUTH API - COMPLETE
 // ============================================
 export const authAPI = {
   // ✅ LOGIN
@@ -420,7 +400,7 @@ export const authAPI = {
     });
   },
   
-  // ✅ VERIFY
+  // ✅ VERIFY - 4-digit code verification
   verify: (data) => {
     console.log('✅ Verify request to Osimart:', data);
     return authAxios.post('/auth/verify/', data, {
@@ -428,7 +408,7 @@ export const authAPI = {
     });
   },
   
-  // ✅ RESEND VERIFICATION
+  // ✅ RESEND VERIFICATION CODE
   resendVerification: (data) => {
     console.log('📧 Resend verification request to Osimart:', data);
     return authAxios.post('/auth/regen/', data, {
@@ -436,7 +416,7 @@ export const authAPI = {
     });
   },
   
-  // ✅ LOGOUT - With full logging
+  // ✅ LOGOUT
   logout: () => {
     console.log('🚪 Logout request to Osimart');
     const body = {};
@@ -462,10 +442,45 @@ export const authAPI = {
     });
   },
   
-  // ✅ CHANGE PASSWORD
+  // ✅ GUEST REGISTER
+  guestRegister: (data) => {
+    console.log('👤 Guest register request to Osimart:', data);
+    return authAxios.post('/auth/guest/', data, {
+      params: { store: STORE_ID }
+    });
+  },
+  
+  // ✅ CHANGE PASSWORD (for authenticated users)
   changePassword: (data) => {
     console.log('🔑 Change password request to Osimart:', data);
     return authAxios.post('/auth/change-password/', data, {
+      params: { store: STORE_ID }
+    });
+  },
+  
+  // ✅ FORGOT PASSWORD - Request reset code
+  forgotPassword: (data) => {
+    console.log('📧 Forgot password request to Osimart:', data);
+    return authAxios.post('/auth/forgot-password/', {
+      email: data.email,
+      reset_as: 'customer',
+      store_id: STORE_ID
+    }, {
+      params: { store: STORE_ID }
+    });
+  },
+
+  // ✅ RESET PASSWORD - Verify code and set new password
+  // IMPORTANT: The API expects 'password' not 'new_password'!
+  resetPassword: (data) => {
+    console.log('🔑 Reset password request to Osimart:', data);
+    return authAxios.post('/auth/reset-password/', {
+      email: data.email,
+      code: data.code,
+      password: data.new_password, // API expects 'password', not 'new_password'
+      reset_as: 'customer',
+      store_id: STORE_ID
+    }, {
       params: { store: STORE_ID }
     });
   },

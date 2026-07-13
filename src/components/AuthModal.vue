@@ -36,6 +36,15 @@
               placeholder="Enter your password"
             >
           </div>
+          <div class="text-right">
+            <button
+              type="button"
+              @click="openForgotPassword"
+              class="text-sm text-amber-600 hover:text-amber-700 hover:underline transition"
+            >
+              Forgot Password?
+            </button>
+          </div>
           <button
             type="submit"
             :disabled="authStore.isLoading"
@@ -155,6 +164,12 @@
     @verified="handleVerificationSuccess"
     @close="handleVerificationClose"
   />
+
+  <ForgotPasswordModal
+    :show="showForgotPassword"
+    @close="showForgotPassword = false"
+    @switch-to-login="handleSwitchToLogin"
+  />
 </template>
 
 <script setup>
@@ -162,6 +177,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { EMAIL_PREFIX, prefixEmail, cleanEmail } from '@/services/osimart'
 import VerifyModal from './VerifyModal.vue'
+import ForgotPasswordModal from './ForgotPasswordModal.vue'
 
 const emit = defineEmits(['login-success'])
 const authStore = useAuthStore()
@@ -172,6 +188,9 @@ const showVerifyModal = ref(false)
 const verifyEmail = ref('')
 const verifyStoreId = ref('')
 const rawEmailForLogin = ref('')
+
+// Forgot Password state
+const showForgotPassword = ref(false)
 
 const loginForm = ref({
   email: '',
@@ -209,6 +228,19 @@ const getDeviceInfo = () => {
   }
 
   return { deviceName, deviceId }
+}
+
+// ============================================
+// FORGOT PASSWORD
+// ============================================
+const openForgotPassword = () => {
+  authStore.closeAuthModal()
+  showForgotPassword.value = true
+}
+
+const handleSwitchToLogin = () => {
+  showForgotPassword.value = false
+  authStore.openAuthModal('login')
 }
 
 // ============================================
@@ -326,14 +358,12 @@ const handleGoogleLoginClick = () => {
 }
 
 // ============================================
-// LOGIN - ALWAYS USE RAW EMAIL (with prefix)
+// LOGIN
 // ============================================
 const handleLogin = async () => {
   try {
     const { deviceName, deviceId } = getDeviceInfo()
     
-    // ✅ ALWAYS send the raw email (with prefix) to the API
-    // If user entered clean email, add the prefix
     const emailToSend = prefixEmail(loginForm.value.email)
 
     console.log('📧 Sending to API:', emailToSend)
@@ -420,11 +450,9 @@ const handleVerificationSuccess = (data) => {
   console.log('✅ Verification successful!')
   showVerifyModal.value = false
 
-  // Get the raw email with prefix
   const loginEmail = data?.rawEmail || rawEmailForLogin.value || verifyEmail.value
   const displayEmail = cleanEmail(loginEmail)
 
-  // Pre-fill login form silently
   loginForm.value.email = loginEmail
 
   alert(`✅ Your account has been verified!\n\nPlease sign in with your email:\n📧 ${displayEmail}`)
