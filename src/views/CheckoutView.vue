@@ -757,18 +757,41 @@ const placeOrder = async () => {
   isProcessing.value = true
   
   try {
-    const orderData = {
-      shipping_first_name: checkoutForm.value.firstName,
-      shipping_last_name: checkoutForm.value.lastName,
-      shipping_email: checkoutForm.value.email,
-      shipping_address: checkoutForm.value.address,
-      shipping_postal_code: checkoutForm.value.postalCode,
-      shipping_country_id: checkoutForm.value.countryId,
-      shipping_phone: checkoutForm.value.phone || '',
-      shipping_country_code: checkoutForm.value.countryCode || '+961',
-      payment_method_id: checkoutForm.value.paymentMethod,
-      newsletter: checkoutForm.value.newsletter || false,
+    // ✅ STEP 1: Add all items to server cart first
+    console.log('🔄 Adding items to server cart...')
+    
+    for (const item of cartStore.items) {
+      const variantId = item.variant_id || item.id
+      try {
+        await cartAPI.addItem(variantId, item.quantity)
+        console.log(`✅ Added ${item.name} x${item.quantity} to server cart`)
+      } catch (err) {
+        console.warn(`⚠️ Failed to add ${item.name}:`, err)
+        // Continue with other items
+      }
     }
+    
+    // ✅ STEP 2: Wait a moment for server to process
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    // ✅ STEP 3: Sync cart to get server's version
+    await cartStore.syncWithApi()
+    
+    // ✅ STEP 4: Now checkout with the server cart
+    const orderData = {
+      first_name: checkoutForm.value.firstName,
+      last_name: checkoutForm.value.lastName,
+      email: checkoutForm.value.email,
+      address: checkoutForm.value.address,
+      postal_code: checkoutForm.value.postalCode,
+      country_id: checkoutForm.value.countryId,
+      phone: checkoutForm.value.phone || '',
+      phone_code: checkoutForm.value.countryCode || '+961',
+      payment_method_id: checkoutForm.value.paymentMethod,
+      subscribe_newsletter: checkoutForm.value.newsletter || false,
+    }
+    
+    console.log('📦 Sending order to Osimart:', orderData)
     
     const checkoutResponse = await checkoutAPI.createCheckout(orderData)
     console.log('✅ Checkout response:', checkoutResponse.data)
@@ -785,9 +808,16 @@ const placeOrder = async () => {
     alert(successMessage)
     router.push('/')
   } catch (error) {
-    console.error('Order failed:', error)
-    const errorMsg = error.response?.data?.message || error.message || 'There was an error processing your order. Please try again.'
-    alert(errorMsg)
+    console.error('❌ Order failed:', error)
+    console.error('❌ Error response:', error.response?.data)
+    
+    // Check if error is about empty cart
+    if (error.response?.data?.cart && error.response.data.cart[0] === 'Your cart is empty.') {
+      alert('Your cart is empty. Please add items to your cart before checking out.')
+    } else {
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.response?.data?.detail || error.message || 'There was an error processing your order. Please try again.'
+      alert(errorMsg)
+    }
   } finally {
     isProcessing.value = false
   }

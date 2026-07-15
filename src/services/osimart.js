@@ -356,8 +356,9 @@ export const paymentAPI = {
 // CHECKOUT API
 // ============================================
 export const checkoutAPI = {
+  // ✅ CREATE CHECKOUT (Order)
   createCheckout: (data) => {
-    console.log('📦 Creating checkout:', data);
+    console.log('📦 Creating checkout/order:', data);
     return osimartApi.post('/checkout/', data);
   },
   getCheckoutStatus: (id) => {
