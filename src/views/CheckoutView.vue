@@ -17,6 +17,15 @@
         </router-link>
       </div>
       
+      <!-- Logged In Notice -->
+      <div v-if="authStore.isAuthenticated" class="bg-green-50 border border-green-200 rounded-2xl p-4 mb-6">
+        <p class="text-green-700">
+          <i class="fas fa-check-circle mr-2"></i>
+          Logged in as <span class="font-semibold">{{ authStore.currentUser?.email }}</span>
+          - Contact information auto-filled from your account.
+        </p>
+      </div>
+      
       <!-- Loading State -->
       <div v-if="isLoadingData" class="text-center py-20">
         <i class="fas fa-spinner fa-spin text-4xl text-amber-600"></i>
@@ -39,7 +48,7 @@
         <!-- Left Column: Checkout Form -->
         <div class="flex-1">
           
-          <!-- ✅ Contact Information -->
+          <!-- Contact Information -->
           <div class="bg-white rounded-2xl shadow-md p-6 mb-6">
             <h3 class="text-xl font-playfair font-semibold text-stone-800 mb-4">Contact Information</h3>
             
@@ -50,7 +59,9 @@
                   type="text" 
                   v-model="checkoutForm.firstName" 
                   required
+                  :disabled="authStore.isAuthenticated"
                   class="w-full px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                  :class="{ 'bg-stone-50 text-stone-500 cursor-not-allowed': authStore.isAuthenticated }"
                   placeholder="First name"
                 >
               </div>
@@ -60,7 +71,9 @@
                   type="text" 
                   v-model="checkoutForm.lastName" 
                   required
+                  :disabled="authStore.isAuthenticated"
                   class="w-full px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                  :class="{ 'bg-stone-50 text-stone-500 cursor-not-allowed': authStore.isAuthenticated }"
                   placeholder="Last name"
                 >
               </div>
@@ -70,17 +83,24 @@
                   type="email" 
                   v-model="checkoutForm.email" 
                   required
+                  :disabled="authStore.isAuthenticated"
                   class="w-full px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                  :class="{ 'bg-stone-50 text-stone-500 cursor-not-allowed': authStore.isAuthenticated }"
                   placeholder="your@email.com"
                 >
               </div>
             </div>
             
-            <!-- ✅ Phone Number - Required -->
+            <!-- Phone Number - Required -->
             <div class="mt-4">
               <label class="block text-stone-700 text-sm mb-2">Phone Number *</label>
               <div class="flex gap-2">
-                <select v-model="checkoutForm.countryCode" class="w-24 px-2 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none">
+                <select 
+                  v-model="checkoutForm.countryCode" 
+                  :disabled="authStore.isAuthenticated"
+                  class="w-24 px-2 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                  :class="{ 'bg-stone-50 text-stone-500 cursor-not-allowed': authStore.isAuthenticated }"
+                >
                   <option value="+961">+961</option>
                   <option value="+1">+1</option>
                   <option value="+44">+44</option>
@@ -95,7 +115,9 @@
                   type="tel" 
                   v-model="checkoutForm.phone" 
                   required
+                  :disabled="authStore.isAuthenticated"
                   class="flex-1 px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                  :class="{ 'bg-stone-50 text-stone-500 cursor-not-allowed': authStore.isAuthenticated }"
                   placeholder="Phone number"
                 >
               </div>
@@ -110,17 +132,20 @@
             </div>
           </div>
           
-          <!-- ✅ Delivery Address -->
+          <!-- Delivery Address -->
           <div class="bg-white rounded-2xl shadow-md p-6 mb-6">
             <div class="flex items-center justify-between mb-4">
               <h3 class="text-xl font-playfair font-semibold text-stone-800">Delivery Address</h3>
-              <!-- ✅ Already have an address? log in -->
               <button 
+                v-if="!authStore.isAuthenticated"
                 @click="handleLoginRedirect"
                 class="text-sm text-amber-600 hover:text-amber-700 hover:underline transition"
               >
                 Already have an address? log in
               </button>
+              <span v-else class="text-sm text-green-600">
+                <i class="fas fa-check-circle mr-1"></i> Address from your account
+              </span>
             </div>
             
             <div class="grid grid-cols-1 gap-4">
@@ -161,7 +186,7 @@
             </div>
           </div>
           
-          <!-- ✅ Select Payment Method -->
+          <!-- Select Payment Method -->
           <div class="bg-white rounded-2xl shadow-md p-6">
             <h3 class="text-xl font-playfair font-semibold text-stone-800 mb-4">Select Payment Method</h3>
             
@@ -271,7 +296,7 @@ import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
-import { shippingAPI, paymentAPI, checkoutAPI } from '@/services/osimart'
+import { shippingAPI, paymentAPI, checkoutAPI, osimartApi, getAccessToken } from '@/services/osimart'
 import emailjs from '@emailjs/browser'
 
 const router = useRouter()
@@ -375,9 +400,133 @@ const onCountryChange = () => {
   }
 }
 
-// ✅ Handle Login Redirect
+// Handle Login Redirect
 const handleLoginRedirect = () => {
   authStore.openAuthModal('login')
+}
+
+// ✅ Get token from multiple sources
+const getToken = () => {
+  // Try from osimart's getAccessToken first
+  let token = getAccessToken()
+  
+  // If not in memory, try from auth store
+  if (!token && authStore.token) {
+    token = authStore.token
+  }
+  
+  // If still no token, try from localStorage
+  if (!token) {
+    try {
+      const authData = localStorage.getItem('soutou_auth')
+      if (authData) {
+        const parsed = JSON.parse(authData)
+        token = parsed.token || parsed.access_token || null
+        console.log('🔑 Token loaded from localStorage:', !!token)
+      }
+    } catch (e) {
+      console.warn('Failed to get token from localStorage:', e)
+    }
+  }
+  
+  return token
+}
+
+// ✅ Fetch user profile from Osimart API to get complete user data
+const fetchUserProfile = async () => {
+  if (!authStore.isAuthenticated) {
+    console.log('⚠️ User not authenticated, skipping profile fetch')
+    return null
+  }
+  
+  try {
+    console.log('👤 Fetching user profile from Osimart API...')
+    
+    const token = getToken()
+    
+    if (!token) {
+      console.warn('⚠️ No token available, cannot fetch profile')
+      return null
+    }
+    
+    console.log('🔑 Token available:', !!token)
+    
+    const response = await osimartApi.get('/customer-info/', {
+      params: { store: '92ea209b-b32c-448e-85af-7296eb8eea00' },
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    
+    console.log('✅ Profile response:', response.data)
+    return response.data
+    
+  } catch (err) {
+    console.error('❌ Failed to fetch user profile:', err)
+    console.error('❌ Error details:', err.response?.status, err.response?.data)
+    return null
+  }
+}
+
+// ✅ Auto-fill ONLY contact information (NOT address)
+const autoFillUserData = async () => {
+  if (!authStore.isAuthenticated || !authStore.currentUser) {
+    console.log('⚠️ User not authenticated, skipping auto-fill')
+    return
+  }
+  
+  const user = authStore.currentUser
+  console.log('📝 User data from auth store:', user)
+  
+  // ✅ First, fill from auth store data
+  checkoutForm.value.firstName = user.firstName || user.name?.split(' ')[0] || user.first_name || ''
+  checkoutForm.value.lastName = user.lastName || user.name?.split(' ').slice(1).join(' ') || user.last_name || ''
+  checkoutForm.value.email = user.email || ''
+  checkoutForm.value.phone = user.phone || user.mobile || user.mobile_number || ''
+  
+  console.log('📝 Contact info filled from auth store:', {
+    firstName: checkoutForm.value.firstName,
+    lastName: checkoutForm.value.lastName,
+    email: checkoutForm.value.email,
+    phone: checkoutForm.value.phone
+  })
+  
+  // ✅ Try to fetch from profile API to get complete/updated data
+  try {
+    console.log('🔄 Fetching profile for complete user data...')
+    const profileData = await fetchUserProfile()
+    
+    if (profileData) {
+      const profile = profileData.user || profileData
+      console.log('📝 Profile data:', profile)
+      
+      // ✅ Extract all fields from profile
+      const firstName = profile.first_name || profile.firstName || ''
+      const lastName = profile.last_name || profile.lastName || ''
+      const email = profile.email || ''
+      const phone = profile.phone || profile.mobile || profile.mobile_number || profile.phone_number || ''
+      
+      // ✅ Update form with profile data (overrides auth store if available)
+      if (firstName) checkoutForm.value.firstName = firstName
+      if (lastName) checkoutForm.value.lastName = lastName
+      if (email) checkoutForm.value.email = email
+      if (phone) checkoutForm.value.phone = phone
+      
+      console.log('✅ Contact info updated from profile:', {
+        firstName: checkoutForm.value.firstName,
+        lastName: checkoutForm.value.lastName,
+        email: checkoutForm.value.email,
+        phone: checkoutForm.value.phone
+      })
+    } else {
+      console.log('⚠️ No profile data received, keeping auth store data')
+    }
+  } catch (err) {
+    console.error('❌ Failed to fetch profile for user data:', err)
+  }
+  
+  // ✅ DO NOT fill address fields - user must fill them manually
+  console.log('✅ Address fields remain empty for user to fill')
 }
 
 // Load checkout data
@@ -450,6 +599,11 @@ const loadCheckoutData = async () => {
     const defaultCountry = countries.value.find(c => c.country_name === 'Lebanon') || countries.value[0]
     if (defaultCountry) {
       checkoutForm.value.countryId = defaultCountry.id
+    }
+    
+    // ✅ Auto-fill user data from auth store if logged in
+    if (authStore.isAuthenticated) {
+      await autoFillUserData()
     }
     
   } catch (err) {
@@ -639,7 +793,8 @@ const placeOrder = async () => {
   }
 }
 
-onMounted(() => {
-  loadCheckoutData()
+onMounted(async () => {
+  await authStore.checkAuth()
+  await loadCheckoutData()
 })
 </script>
