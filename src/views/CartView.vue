@@ -99,13 +99,15 @@
                 <span>${{ cartStore.total.toFixed(2) }}</span>
               </div>
               
-              <!-- ✅ Proceed to Checkout Button - Direct navigation -->
-              <router-link 
-                to="/checkout"
-                class="block w-full mt-4 bg-gradient-to-r from-amber-600 to-amber-500 text-white py-3 rounded-full font-semibold hover:scale-[1.02] transition shadow-md text-center"
+              <!-- ✅ FIXED: Proceed to Checkout Button with sync -->
+              <button 
+                @click="goToCheckout"
+                :disabled="cartStore.items.length === 0 || isSyncing"
+                class="block w-full mt-4 bg-gradient-to-r from-amber-600 to-amber-500 text-white py-3 rounded-full font-semibold hover:scale-[1.02] transition shadow-md text-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Proceed to Checkout
-              </router-link>
+                <span v-if="isSyncing"><i class="fas fa-spinner fa-spin mr-2"></i> Syncing...</span>
+                <span v-else>Proceed to Checkout</span>
+              </button>
               
               <router-link to="/collections" class="block text-center mt-4 text-sm text-amber-600 hover:underline">
                 ← Continue Shopping
@@ -120,11 +122,17 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
+import { useAuthStore } from '@/stores/auth'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
 
+const router = useRouter()
 const cartStore = useCartStore()
+const authStore = useAuthStore()
+const isSyncing = ref(false)
+
 useScrollAnimation()
 
 // ============================================
@@ -152,7 +160,43 @@ const removeItem = (id) => {
   cartStore.removeItem(id)
 }
 
-onMounted(() => {
-  cartStore.fetchCart()
+// ✅ FIXED: Go to checkout with cart sync
+const goToCheckout = async () => {
+  if (cartStore.items.length === 0) {
+    alert('Your cart is empty.')
+    return
+  }
+  
+  // ✅ Sync cart with server before navigating to checkout
+  if (authStore.isAuthenticated) {
+    isSyncing.value = true
+    try {
+      console.log('🔄 Syncing cart before checkout...')
+      await cartStore.syncWithApi()
+      console.log('✅ Cart synced, items:', cartStore.items.length)
+      
+      if (cartStore.items.length === 0) {
+        alert('Your cart appears to be empty. Please try adding items again.')
+        isSyncing.value = false
+        return
+      }
+    } catch (error) {
+      console.error('❌ Failed to sync cart:', error)
+      alert('Failed to sync your cart. Please try again.')
+      isSyncing.value = false
+      return
+    }
+    isSyncing.value = false
+  }
+  
+  router.push('/checkout')
+}
+
+onMounted(async () => {
+  await cartStore.fetchCart()
 })
 </script>
+
+<style scoped>
+/* Any existing styles */
+</style>

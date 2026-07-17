@@ -15,7 +15,7 @@ export const useCartStore = defineStore('cart', () => {
   const pendingProduct = ref(null);
   const authRequiredMessage = ref('');
   const currentUserEmail = ref(null);
-  const useApi = ref(true); // Enable API calls
+  const useApi = ref(true);
   const isSyncing = ref(false);
 
   // ============================================
@@ -75,10 +75,18 @@ export const useCartStore = defineStore('cart', () => {
     if (!product) return null;
     
     console.log('🔍 Extracting ID from:', product.name || product.id);
+    console.log('  - id:', product.id);
+    console.log('  - variant_id:', product.variant_id);
+    console.log('  - product_id:', product.product_id);
     
     if (product.variant_id) {
       console.log('✅ Using variant ID:', product.variant_id);
       return product.variant_id;
+    }
+    
+    if (product.product_id) {
+      console.log('✅ Using product ID:', product.product_id);
+      return product.product_id;
     }
     
     if (product.id) {
@@ -100,7 +108,6 @@ export const useCartStore = defineStore('cart', () => {
     } else if (action === 'add' || action === 'update') {
       const existingItem = items.value.find((item) => item.id === itemId);
       if (existingItem) {
-        // Update existing item
         existingItem.quantity = quantity;
         if (extraData.name) existingItem.name = extraData.name;
         if (extraData.price) existingItem.price = extraData.price;
@@ -122,7 +129,6 @@ export const useCartStore = defineStore('cart', () => {
         if (extraData.accent) existingItem.accent = extraData.accent;
         console.log(`📝 Updated item ${itemId} in local cart, quantity: ${quantity}`);
       } else if (action === 'add') {
-        // Add new item
         items.value.push({
           id: itemId,
           product_id: extraData.product_id || itemId,
@@ -164,12 +170,11 @@ export const useCartStore = defineStore('cart', () => {
     console.log('🔄 Syncing cart with API...');
     
     try {
-      // Get current cart from API
-      const response = await cartAPI.viewCart();
-      console.log('✅ API cart response:', response.data);
+      const apiCart = await cartAPI.viewCart();
+      console.log('✅ API cart response:', apiCart);
       
-      if (response.data && response.data.cart) {
-        const apiItems = Object.values(response.data.cart).map(item => ({
+      if (apiCart && apiCart.cart) {
+        const apiItems = Object.values(apiCart.cart).map(item => ({
           id: item.id,
           product_id: item.product_id || '',
           product_slug: item.slug || '',
@@ -194,13 +199,21 @@ export const useCartStore = defineStore('cart', () => {
           stock: Number(item.remaining_stock) || 0,
         }));
         
-        // Replace local items with API items
         items.value = apiItems;
         totalPrice.value = subtotal.value;
         saveToLocalStorage();
         console.log('✅ Cart synced from API:', items.value.length, 'items');
         return true;
       }
+      
+      if (apiCart && apiCart.cart === null) {
+        items.value = [];
+        totalPrice.value = 0;
+        saveToLocalStorage();
+        console.log('✅ API cart is empty, cleared local cart');
+        return true;
+      }
+      
       throw new Error('Unexpected cart response from Osimart');
     } catch (err) {
       console.error('❌ Failed to sync cart with Osimart:', err.response?.data || err.message);
@@ -220,14 +233,11 @@ export const useCartStore = defineStore('cart', () => {
     try {
       console.log('📦 Fetching cart...');
       
-      // Try to sync with API first
       const apiSucceeded = useApi.value && await syncWithApi();
 
-      // A successful empty API cart is authoritative; localStorage is fallback only.
       if (!apiSucceeded) {
         console.log('📦 Loading cart from localStorage...');
         loadFromLocalStorage();
-        error.value = 'Failed to load cart from Osimart';
       }
       
       console.log('✅ Cart loaded:', items.value.length, 'items');
@@ -236,7 +246,6 @@ export const useCartStore = defineStore('cart', () => {
     } catch (err) {
       console.error('❌ Failed to load cart:', err.message);
       error.value = 'Failed to load cart';
-      // Fallback to localStorage
       loadFromLocalStorage();
       return items.value;
     } finally {
@@ -296,18 +305,38 @@ export const useCartStore = defineStore('cart', () => {
 
     if (useApi.value) {
       try {
-        const response = await cartAPI.addItem(itemId, product.quantity || 1);
-        console.log('✅ Item added via API:', response.data);
+        const quantity = product.quantity || 1;
+        console.log(`📤 Sending to API: addItem ${itemId}, quantity: ${quantity}`);
+        
+        const response = await cartAPI.addItem(itemId, quantity);
+        console.log('✅ API Response:', response);
+        
         await syncWithApi();
+        console.log('✅ Cart synced after API add');
+        
+        lastAddedMessage.value = `${product.name} added to cart!`;
+        setTimeout(() => {
+          lastAddedMessage.value = '';
+        }, 2000);
+        
+        return { success: true, message: 'Item added to cart' };
       } catch (err) {
         console.error('❌ Osimart add failed:', err.response?.data || err.message);
         error.value = 'Failed to add item to cart';
-        return { success: false, message: error.value };
+        
+        console.log('🔄 Falling back to local cart update...');
+        updateLocalCart(itemId, 'add', product.quantity || 1, extraData);
+        
+        lastAddedMessage.value = `${product.name} added to cart (local only)`;
+        setTimeout(() => {
+          lastAddedMessage.value = '';
+        }, 2000);
+        
+        return { success: true, message: 'Item added to cart (local only)' };
       }
-    } else {
-      updateLocalCart(itemId, 'add', product.quantity || 1, extraData);
     }
 
+    updateLocalCart(itemId, 'add', product.quantity || 1, extraData);
     lastAddedMessage.value = `${product.name} added to cart!`;
     setTimeout(() => {
       lastAddedMessage.value = '';
@@ -320,85 +349,88 @@ export const useCartStore = defineStore('cart', () => {
   // UPDATE QUANTITY
   // ============================================
   async function updateQuantity(productId, delta) {
-  const item = items.value.find((i) => i.id === productId);
-  if (!item) {
-    return { success: false, message: 'Item not found' };
-  }
+    const item = items.value.find((i) => i.id === productId);
+    if (!item) {
+      return { success: false, message: 'Item not found' };
+    }
 
-  const newQuantity = item.quantity + delta;
+    const newQuantity = item.quantity + delta;
 
-  if (newQuantity <= 0) {
-    return removeItem(productId);
-  }
+    if (newQuantity <= 0) {
+      return removeItem(productId);
+    }
 
-  if (useApi.value) {
-    try {
-      const quantity = Math.abs(delta);
-      if (delta > 0) {
-        await cartAPI.addItem(item.variant_id || productId, quantity);
-      } else {
-        await cartAPI.removeItem(item.variant_id || productId, quantity);
+    if (useApi.value) {
+      try {
+        const quantity = Math.abs(delta);
+        if (delta > 0) {
+          await cartAPI.addItem(item.variant_id || productId, quantity);
+        } else {
+          await cartAPI.removeItem(item.variant_id || productId);
+        }
+        await syncWithApi();
+        return { success: true };
+      } catch (err) {
+        console.error('❌ Osimart quantity update failed:', err.response?.data || err.message);
+        error.value = 'Failed to update cart quantity';
+        updateLocalCart(productId, 'update', newQuantity);
+        return { success: true, message: 'Quantity updated locally' };
       }
-      await syncWithApi();
-      return { success: true };
-    } catch (err) {
-      console.error('❌ Osimart quantity update failed:', err.response?.data || err.message);
-      error.value = 'Failed to update cart quantity';
-      return { success: false, message: error.value };
     }
+
+    updateLocalCart(productId, 'update', newQuantity);
+    return { success: true };
   }
 
-  updateLocalCart(productId, 'update', newQuantity);
-  return { success: true };
-}
+  // ============================================
+  // REMOVE ITEM
+  // ============================================
+  async function removeItem(productId) {
+    const item = items.value.find((i) => i.id === productId);
+    if (!item) return { success: false, message: 'Item not found' };
 
-// ============================================
-// REMOVE ITEM
-// ============================================
-async function removeItem(productId) {
-  const item = items.value.find((i) => i.id === productId);
-  if (!item) return { success: false, message: 'Item not found' };
-
-  if (useApi.value) {
-    try {
-      await cartAPI.removeAll(item.variant_id || productId);
-      await syncWithApi();
-      return { success: true };
-    } catch (err) {
-      console.error('❌ Osimart remove failed:', err.response?.data || err.message);
-      error.value = 'Failed to remove item from cart';
-      return { success: false, message: error.value };
+    if (useApi.value) {
+      try {
+        await cartAPI.removeItem(item.variant_id || productId);
+        await syncWithApi();
+        return { success: true };
+      } catch (err) {
+        console.error('❌ Osimart remove failed:', err.response?.data || err.message);
+        error.value = 'Failed to remove item from cart';
+        updateLocalCart(productId, 'delete');
+        return { success: true, message: 'Item removed locally' };
+      }
     }
-  }
 
-  updateLocalCart(productId, 'delete');
-  return { success: true };
-}
+    updateLocalCart(productId, 'delete');
+    return { success: true };
+  }
 
   // ============================================
   // CLEAR CART
   // ============================================
   async function clearCart() {
     try {
-      const itemIds = items.value.map((item) => item.id);
-      
-      // Clear local cart
-      items.value = [];
-      totalPrice.value = 0;
-      saveToLocalStorage();
-
-      // Try API
-      if (useApi.value && itemIds.length > 0) {
+      if (useApi.value && items.value.length > 0) {
         try {
-          for (const id of itemIds) {
-            await cartAPI.removeAll(id);
-          }
+          await cartAPI.clearCart();
           console.log('✅ Cart cleared via API');
           await syncWithApi();
         } catch (err) {
           console.warn('⚠️ Failed to clear cart via API:', err.message);
+          for (const item of items.value) {
+            try {
+              await cartAPI.removeItem(item.variant_id || item.id);
+            } catch (removeErr) {
+              console.warn('⚠️ Failed to remove item:', item.name, removeErr.message);
+            }
+          }
         }
       }
+
+      items.value = [];
+      totalPrice.value = 0;
+      saveToLocalStorage();
 
       console.log('✅ Cart cleared');
       return { success: true, message: 'Cart cleared' };
@@ -498,14 +530,12 @@ async function removeItem(productId) {
     saveToLocalStorage();
   }, { deep: true });
 
-  // Load from localStorage on init
   loadFromLocalStorage();
 
   // ============================================
   // RETURN
   // ============================================
   return {
-    // State
     items,
     totalPrice,
     isLoading,
@@ -516,13 +546,11 @@ async function removeItem(productId) {
     currentUserEmail,
     isSyncing,
 
-    // Getters
     itemCount,
     subtotal,
     tax,
     total,
 
-    // Actions
     fetchCart,
     syncWithApi,
     addToCart,
@@ -530,17 +558,14 @@ async function removeItem(productId) {
     removeItem,
     clearCart,
 
-    // Helpers
     getProductLink,
     getItemDisplayPrice,
 
-    // Auth
     setUser,
     addPendingAfterLogin,
     clearUserCartDisplay,
     getUserEmail,
 
-    // Storage
     loadFromLocalStorage,
     saveToLocalStorage,
   };

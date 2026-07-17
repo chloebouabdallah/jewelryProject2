@@ -91,15 +91,13 @@
               </div>
             </div>
             
-            <!-- Phone Number - Required -->
+            <!-- Phone Number - ALWAYS EDITABLE -->
             <div class="mt-4">
               <label class="block text-stone-700 text-sm mb-2">Phone Number *</label>
               <div class="flex gap-2">
                 <select 
-                  v-model="checkoutForm.countryCode" 
-                  :disabled="authStore.isAuthenticated"
+                  v-model="checkoutForm.countryCode"
                   class="w-24 px-2 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
-                  :class="{ 'bg-stone-50 text-stone-500 cursor-not-allowed': authStore.isAuthenticated }"
                 >
                   <option value="+961">+961</option>
                   <option value="+1">+1</option>
@@ -115,12 +113,11 @@
                   type="tel" 
                   v-model="checkoutForm.phone" 
                   required
-                  :disabled="authStore.isAuthenticated"
                   class="flex-1 px-4 py-2 border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
-                  :class="{ 'bg-stone-50 text-stone-500 cursor-not-allowed': authStore.isAuthenticated }"
                   placeholder="Phone number"
                 >
               </div>
+              <p class="text-xs text-stone-400 mt-1">We'll use this for order updates and delivery</p>
             </div>
             
             <!-- Newsletter Signup -->
@@ -296,7 +293,7 @@ import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
-import { shippingAPI, paymentAPI, checkoutAPI, osimartApi, getAccessToken } from '@/services/osimart'
+import { shippingAPI, paymentAPI, checkoutAPI, osimartApi, getAccessToken, cartAPI } from '@/services/osimart'
 import emailjs from '@emailjs/browser'
 
 const router = useRouter()
@@ -407,126 +404,67 @@ const handleLoginRedirect = () => {
 
 // ✅ Get token from multiple sources
 const getToken = () => {
-  // Try from osimart's getAccessToken first
-  let token = getAccessToken()
-  
-  // If not in memory, try from auth store
-  if (!token && authStore.token) {
-    token = authStore.token
-  }
-  
-  // If still no token, try from localStorage
+  let token = localStorage.getItem('authToken')
   if (!token) {
-    try {
-      const authData = localStorage.getItem('soutou_auth')
-      if (authData) {
-        const parsed = JSON.parse(authData)
-        token = parsed.token || parsed.access_token || null
-        console.log('🔑 Token loaded from localStorage:', !!token)
-      }
-    } catch (e) {
-      console.warn('Failed to get token from localStorage:', e)
-    }
+    token = getAccessToken()
   }
-  
   return token
 }
 
-// ✅ Fetch user profile from Osimart API to get complete user data
+// ✅ Fetch user profile from Osimart API
 const fetchUserProfile = async () => {
   if (!authStore.isAuthenticated) {
-    console.log('⚠️ User not authenticated, skipping profile fetch')
     return null
   }
   
   try {
-    console.log('👤 Fetching user profile from Osimart API...')
-    
     const token = getToken()
-    
-    if (!token) {
-      console.warn('⚠️ No token available, cannot fetch profile')
-      return null
-    }
-    
-    console.log('🔑 Token available:', !!token)
+    if (!token) return null
     
     const response = await osimartApi.get('/customer-info/', {
       params: { store: '92ea209b-b32c-448e-85af-7296eb8eea00' },
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      headers: { 'Authorization': `Bearer ${token}` }
     })
     
-    console.log('✅ Profile response:', response.data)
     return response.data
-    
   } catch (err) {
     console.error('❌ Failed to fetch user profile:', err)
-    console.error('❌ Error details:', err.response?.status, err.response?.data)
     return null
   }
 }
 
-// ✅ Auto-fill ONLY contact information (NOT address)
+// ✅ Auto-fill contact information (phone is auto-filled but EDITABLE)
 const autoFillUserData = async () => {
   if (!authStore.isAuthenticated || !authStore.currentUser) {
-    console.log('⚠️ User not authenticated, skipping auto-fill')
     return
   }
   
   const user = authStore.currentUser
-  console.log('📝 User data from auth store:', user)
   
-  // ✅ First, fill from auth store data
+  // Auto-fill but user can still edit
   checkoutForm.value.firstName = user.firstName || user.name?.split(' ')[0] || user.first_name || ''
   checkoutForm.value.lastName = user.lastName || user.name?.split(' ').slice(1).join(' ') || user.last_name || ''
   checkoutForm.value.email = user.email || ''
+  
+  // ✅ Auto-fill phone but user can edit it
   checkoutForm.value.phone = user.phone || user.mobile || user.mobile_number || ''
+  console.log('📝 Phone auto-filled (editable):', checkoutForm.value.phone)
   
-  console.log('📝 Contact info filled from auth store:', {
-    firstName: checkoutForm.value.firstName,
-    lastName: checkoutForm.value.lastName,
-    email: checkoutForm.value.email,
-    phone: checkoutForm.value.phone
-  })
-  
-  // ✅ Try to fetch from profile API to get complete/updated data
   try {
-    console.log('🔄 Fetching profile for complete user data...')
     const profileData = await fetchUserProfile()
-    
     if (profileData) {
       const profile = profileData.user || profileData
-      console.log('📝 Profile data:', profile)
-      
-      // ✅ Extract all fields from profile
-      const firstName = profile.first_name || profile.firstName || ''
-      const lastName = profile.last_name || profile.lastName || ''
-      const email = profile.email || ''
-      const phone = profile.phone || profile.mobile || profile.mobile_number || profile.phone_number || ''
-      
-      // ✅ Update form with profile data (overrides auth store if available)
-      if (firstName) checkoutForm.value.firstName = firstName
-      if (lastName) checkoutForm.value.lastName = lastName
-      if (email) checkoutForm.value.email = email
-      if (phone) checkoutForm.value.phone = phone
-      
-      console.log('✅ Contact info updated from profile:', {
-        firstName: checkoutForm.value.firstName,
-        lastName: checkoutForm.value.lastName,
-        email: checkoutForm.value.email,
-        phone: checkoutForm.value.phone
-      })
-    } else {
-      console.log('⚠️ No profile data received, keeping auth store data')
+      if (profile.first_name) checkoutForm.value.firstName = profile.first_name
+      if (profile.last_name) checkoutForm.value.lastName = profile.last_name
+      if (profile.email) checkoutForm.value.email = profile.email
+      if (profile.phone || profile.mobile) {
+        checkoutForm.value.phone = profile.phone || profile.mobile
+        console.log('📝 Phone updated from profile (editable):', checkoutForm.value.phone)
+      }
     }
   } catch (err) {
     console.error('❌ Failed to fetch profile for user data:', err)
   }
-  
-  // ✅ DO NOT fill address fields - user must fill them manually
-  console.log('✅ Address fields remain empty for user to fill')
 }
 
 // Load checkout data
@@ -601,7 +539,7 @@ const loadCheckoutData = async () => {
       checkoutForm.value.countryId = defaultCountry.id
     }
     
-    // ✅ Auto-fill user data from auth store if logged in
+    // Auto-fill user data if logged in (phone is editable)
     if (authStore.isAuthenticated) {
       await autoFillUserData()
     }
@@ -742,7 +680,7 @@ We'll notify you when your order ships!
   }
 }
 
-// Place Order
+// ✅ FIXED: Place Order - Uses correct API format
 const placeOrder = async () => {
   if (!isFormValid.value) {
     alert('Please fill in all required fields.')
@@ -757,27 +695,14 @@ const placeOrder = async () => {
   isProcessing.value = true
   
   try {
-    // ✅ STEP 1: Add all items to server cart first
-    console.log('🔄 Adding items to server cart...')
+    // ✅ Build order_items from cart items
+    const orderItems = cartStore.items.map(item => ({
+      variant_id: item.variant_id || item.id,
+      quantity: item.quantity,
+      price: item.price
+    }))
     
-    for (const item of cartStore.items) {
-      const variantId = item.variant_id || item.id
-      try {
-        await cartAPI.addItem(variantId, item.quantity)
-        console.log(`✅ Added ${item.name} x${item.quantity} to server cart`)
-      } catch (err) {
-        console.warn(`⚠️ Failed to add ${item.name}:`, err)
-        // Continue with other items
-      }
-    }
-    
-    // ✅ STEP 2: Wait a moment for server to process
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    // ✅ STEP 3: Sync cart to get server's version
-    await cartStore.syncWithApi()
-    
-    // ✅ STEP 4: Now checkout with the server cart
+    // ✅ Format data according to Osimart API expectations
     const orderData = {
       first_name: checkoutForm.value.firstName,
       last_name: checkoutForm.value.lastName,
@@ -789,15 +714,19 @@ const placeOrder = async () => {
       phone_code: checkoutForm.value.countryCode || '+961',
       payment_method_id: checkoutForm.value.paymentMethod,
       subscribe_newsletter: checkoutForm.value.newsletter || false,
+      order_items: orderItems
     }
     
-    console.log('📦 Sending order to Osimart:', orderData)
+    console.log('📦 Creating order with items:', JSON.stringify(orderData, null, 2))
     
-    const checkoutResponse = await checkoutAPI.createCheckout(orderData)
-    console.log('✅ Checkout response:', checkoutResponse.data)
+    const response = await checkoutAPI.createCheckout(orderData)
+    console.log('✅ Order created:', response.data)
     
+    // Send emails
     await sendOrderEmail()
     await sendCustomerConfirmationEmail()
+    
+    // Clear cart
     await cartStore.clearCart()
     
     const isCOD = selectedPaymentMethod.value?.is_cod
@@ -807,24 +736,59 @@ const placeOrder = async () => {
     
     alert(successMessage)
     router.push('/')
+    
   } catch (error) {
     console.error('❌ Order failed:', error)
     console.error('❌ Error response:', error.response?.data)
+    console.error('❌ Error status:', error.response?.status)
     
-    // Check if error is about empty cart
-    if (error.response?.data?.cart && error.response.data.cart[0] === 'Your cart is empty.') {
-      alert('Your cart is empty. Please add items to your cart before checking out.')
-    } else {
-      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.response?.data?.detail || error.message || 'There was an error processing your order. Please try again.'
-      alert(errorMsg)
+    let errorMsg = 'There was an error processing your order. Please try again.'
+    
+    if (error.response?.data) {
+      const data = error.response.data
+      
+      if (typeof data === 'string') {
+        errorMsg = data
+      } else if (data.non_field_errors) {
+        errorMsg = Array.isArray(data.non_field_errors) ? data.non_field_errors.join(', ') : data.non_field_errors
+      } else if (data.message) {
+        errorMsg = data.message
+      } else if (data.error) {
+        errorMsg = data.error
+      } else if (data.detail) {
+        errorMsg = data.detail
+      } else if (data.cart) {
+        errorMsg = Array.isArray(data.cart) ? data.cart.join(', ') : data.cart
+      } else if (data.order_items) {
+        errorMsg = Array.isArray(data.order_items) ? data.order_items.join(', ') : data.order_items
+      } else if (typeof data === 'object') {
+        const firstKey = Object.keys(data)[0]
+        if (firstKey && data[firstKey]) {
+          errorMsg = Array.isArray(data[firstKey]) ? data[firstKey].join(', ') : String(data[firstKey])
+        }
+      }
     }
+    
+    alert(`❌ Order Failed: ${errorMsg}`)
   } finally {
     isProcessing.value = false
   }
 }
 
+// ✅ On mount - sync cart first, then load checkout data
 onMounted(async () => {
   await authStore.checkAuth()
+  
+  if (authStore.isAuthenticated) {
+    console.log('🔄 Syncing cart with server before checkout...')
+    await cartStore.syncWithApi()
+    console.log('✅ Cart synced, items:', cartStore.items.length)
+  }
+  
   await loadCheckoutData()
 })
 </script>
+
+<style scoped>
+/* Any existing styles */
+</style>

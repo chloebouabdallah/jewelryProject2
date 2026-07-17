@@ -21,12 +21,20 @@ export const osimartApi = axios.create({
 });
 
 osimartApi.interceptors.request.use((config) => {
+  // Get token from localStorage (like your example)
+  const token = localStorage.getItem('authToken');
+  
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
   if (!config.params) {
     config.params = {};
   }
   if (!config.params.store) {
     config.params.store = STORE_ID;
   }
+  
   return config;
 });
 
@@ -56,7 +64,7 @@ let failedQueue = [];
 export function setTokens(tokens) {
   if (tokens.access_token) {
     accessToken = tokens.access_token;
-    tokenExpiry = Date.now() + 15 * 60 * 1000; // 15 minutes
+    tokenExpiry = Date.now() + 15 * 60 * 1000;
     console.log('🔑 Access token stored in memory, expires in 15 minutes');
   }
   
@@ -302,36 +310,84 @@ export const variantAPI = {
 };
 
 // ============================================
-// CART API
+// CART API - EXACTLY AS YOUR EXAMPLE
 // ============================================
 export const cartAPI = {
-  viewCart: () => osimartApi.get('/cart/view/'),
-  updateItem: ({ item_id, action, quantity }) => osimartApi.post('/cart/update-item/', {
-    item_id,
-    action,
-    quantity,
-  }),
-  addItem: (item_id, quantity = 1) => {
-    return cartAPI.updateItem({
-      item_id,
-      action: 'add',
-      quantity,
-    });
+  async viewCart() {
+    try {
+      const response = await osimartApi.get('/cart/view/')
+      return response.data
+    } catch (error) {
+      console.error('Error fetching cart:', error)
+      throw error
+    }
   },
-  removeItem: (item_id, quantity = 1) => {
-    return cartAPI.updateItem({
-      item_id,
-      action: 'remove',
-      quantity,
-    });
+
+  async addItem(productId, quantity = 1) {
+    try {
+      const response = await osimartApi.post('/cart/update-item/', {
+        item_id: productId,
+        action: 'add',
+        quantity: quantity
+      })
+      return response.data
+    } catch (error) {
+      console.error('Error adding to cart:', error)
+      throw error
+    }
   },
-  removeAll: (item_id) => {
-    return cartAPI.updateItem({
-      item_id,
-      action: 'remove_all',
-      quantity: 0,
-    });
+
+  async updateItem(productId, quantity) {
+    try {
+      const response = await osimartApi.post('/cart/update-item/', {
+        item_id: productId,
+        action: 'add',
+        quantity: quantity
+      })
+      return response.data
+    } catch (error) {
+      console.log(error.response?.data)
+      throw error
+    }
   },
+
+  async removeItem(productId) {
+    try {
+      const response = await osimartApi.post('/cart/update-item/', {
+        item_id: productId,
+        action: 'remove_all'
+      })
+      return response.data
+    } catch (error) {
+      console.log(error.response?.data)
+      throw error
+    }
+  },
+
+  async clearCart() {
+    try {
+      // First get the current cart
+      const cartData = await this.viewCart()
+      
+      if (cartData && cartData.cart) {
+        const cartItems = Object.values(cartData.cart)
+        
+        // Remove each item one by one
+        for (const item of cartItems) {
+          try {
+            await this.removeItem(item.id)
+          } catch (removeErr) {
+            console.warn('⚠️ Failed to remove item:', item.name, removeErr.message)
+          }
+        }
+      }
+      
+      return { success: true }
+    } catch (error) {
+      console.error('Error clearing cart:', error)
+      throw error
+    }
+  }
 };
 
 // ============================================
@@ -356,11 +412,17 @@ export const paymentAPI = {
 // CHECKOUT API
 // ============================================
 export const checkoutAPI = {
-  // ✅ CREATE CHECKOUT (Order)
   createCheckout: (data) => {
-    console.log('📦 Creating checkout/order:', data);
-    return osimartApi.post('/checkout/', data);
+    console.log('📦 Creating checkout/order with data:', JSON.stringify(data, null, 2));
+    
+    // ✅ Make sure we're sending a proper JSON object
+    return osimartApi.post('/checkout/', data, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
   },
+  
   getCheckoutStatus: (id) => {
     console.log('📦 Getting checkout status:', id);
     return osimartApi.get(`/checkout/${id}/result/`);
@@ -385,7 +447,6 @@ export const orderSummariesAPI = {
 // AUTH API - COMPLETE
 // ============================================
 export const authAPI = {
-  // ✅ LOGIN
   login: (data) => {
     console.log('🔐 Login request to Osimart:', data);
     return authAxios.post('/auth/login/', data, {
@@ -393,7 +454,6 @@ export const authAPI = {
     });
   },
   
-  // ✅ REGISTER
   register: (data) => {
     console.log('📝 Register request to Osimart:', data);
     return authAxios.post('/auth/register/', data, {
@@ -401,7 +461,6 @@ export const authAPI = {
     });
   },
   
-  // ✅ VERIFY - 4-digit code verification
   verify: (data) => {
     console.log('✅ Verify request to Osimart:', data);
     return authAxios.post('/auth/verify/', data, {
@@ -409,7 +468,6 @@ export const authAPI = {
     });
   },
   
-  // ✅ RESEND VERIFICATION CODE
   resendVerification: (data) => {
     console.log('📧 Resend verification request to Osimart:', data);
     return authAxios.post('/auth/regen/', data, {
@@ -417,7 +475,6 @@ export const authAPI = {
     });
   },
   
-  // ✅ LOGOUT
   logout: () => {
     console.log('🚪 Logout request to Osimart');
     const body = {};
@@ -443,7 +500,6 @@ export const authAPI = {
     });
   },
   
-  // ✅ GUEST REGISTER
   guestRegister: (data) => {
     console.log('👤 Guest register request to Osimart:', data);
     return authAxios.post('/auth/guest/', data, {
@@ -451,7 +507,6 @@ export const authAPI = {
     });
   },
   
-  // ✅ CHANGE PASSWORD (for authenticated users)
   changePassword: (data) => {
     console.log('🔑 Change password request to Osimart:', data);
     return authAxios.post('/auth/change-password/', data, {
@@ -459,7 +514,6 @@ export const authAPI = {
     });
   },
   
-  // ✅ FORGOT PASSWORD - Request reset code
   forgotPassword: (data) => {
     console.log('📧 Forgot password request to Osimart:', data);
     return authAxios.post('/auth/forgot-password/', {
@@ -471,14 +525,12 @@ export const authAPI = {
     });
   },
 
-  // ✅ RESET PASSWORD - Verify code and set new password
-  // IMPORTANT: The API expects 'password' not 'new_password'!
   resetPassword: (data) => {
     console.log('🔑 Reset password request to Osimart:', data);
     return authAxios.post('/auth/reset-password/', {
       email: data.email,
       code: data.code,
-      password: data.new_password, // API expects 'password', not 'new_password'
+      password: data.new_password,
       reset_as: 'customer',
       store_id: STORE_ID
     }, {
@@ -486,7 +538,6 @@ export const authAPI = {
     });
   },
   
-  // ✅ GET PROFILE
   getProfile: () => {
     console.log('👤 Get profile request to Osimart');
     return osimartApi.get('/customers/profile/', {

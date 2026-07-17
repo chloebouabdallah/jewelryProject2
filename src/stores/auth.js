@@ -82,6 +82,34 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // ============================================
+  // LOCAL STORAGE HELPERS
+  // ============================================
+  function saveToLocalStorage() {
+    if (user.value) {
+      try {
+        localStorage.setItem('soutou_user', JSON.stringify(user.value))
+        console.log('💾 User saved to localStorage')
+      } catch (e) {
+        console.warn('Failed to save user:', e)
+      }
+    }
+  }
+
+  function loadFromLocalStorage() {
+    try {
+      const saved = localStorage.getItem('soutou_user')
+      if (saved) {
+        const data = JSON.parse(saved)
+        console.log('📂 User loaded from localStorage:', data.email)
+        return data
+      }
+    } catch (e) {
+      console.warn('Failed to load user from localStorage:', e)
+    }
+    return null
+  }
+
+  // ============================================
   // LOGIN
   // ============================================
   async function login(email, password, deviceName, deviceId) {
@@ -152,6 +180,10 @@ export const useAuthStore = defineStore('auth', () => {
         session_id: sessionIdValue
       })
 
+      // ✅ ALSO SAVE TO LOCALSTORAGE FOR CART API
+      localStorage.setItem('authToken', accessTokenValue)
+      console.log('💾 Auth token saved to localStorage')
+
       const rawEmail = userData.email || email
       const displayEmail = cleanEmail(rawEmail)
 
@@ -176,8 +208,9 @@ export const useAuthStore = defineStore('auth', () => {
         session_id: sessionIdValue,
       }
 
-      // ✅ Cache user data for recovery on refresh
+      // Cache user data for recovery on refresh
       cacheUserData(user.value)
+      saveToLocalStorage()
 
       isAuthenticated.value = true
       showAuthModal.value = false
@@ -243,6 +276,11 @@ export const useAuthStore = defineStore('auth', () => {
       console.log('🗑️ Clearing local tokens and cache...')
       clearTokens()
       clearCachedUserData()
+      
+      // ✅ ALSO CLEAR LOCALSTORAGE
+      localStorage.removeItem('authToken')
+      localStorage.removeItem('soutou_user')
+      console.log('🗑️ Auth token and user data removed from localStorage')
       
       const cartStore = useCartStore()
       cartStore.clearUserCartDisplay()
@@ -360,6 +398,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     cacheUserData(user.value)
+    saveToLocalStorage()
     isAuthenticated.value = true
     
     if (userData.token || userData.accessToken) {
@@ -368,6 +407,10 @@ export const useAuthStore = defineStore('auth', () => {
         refresh_token: userData.refresh_token || null,
         session_id: userData.session_id || null
       })
+      
+      // ✅ SAVE TO LOCALSTORAGE FOR CART API
+      localStorage.setItem('authToken', userData.token || userData.accessToken)
+      console.log('💾 Auth token saved to localStorage from social login')
     }
 
     showAuthModal.value = false
@@ -434,27 +477,66 @@ export const useAuthStore = defineStore('auth', () => {
   async function checkAuth() {
     console.log('🔍 Checking authentication...')
     
+    // ✅ First check localStorage for token
+    const localToken = localStorage.getItem('authToken')
     const accessToken = getAccessToken()
     const refreshToken = getRefreshToken()
     
     // ✅ If we have user data and access token in memory, we're authenticated
-    if (user.value && isAuthenticated.value && accessToken && !isTokenExpired()) {
+    if (user.value && isAuthenticated.value && (accessToken || localToken) && !isTokenExpired()) {
       console.log('✅ User already authenticated in memory:', user.value.email)
       return true
     }
     
-    // ✅ If we have refresh token, use it to get a new access token FIRST
+    // ✅ If we have a token in localStorage but not in memory, restore it
+    if (localToken && !accessToken) {
+      console.log('🔄 Found token in localStorage, restoring...')
+      // Set the token in memory
+      setTokens({
+        access_token: localToken,
+        refresh_token: refreshToken || null
+      })
+      isAuthenticated.value = true
+      
+      // Restore user data from cache
+      if (!user.value) {
+        const cachedUser = getCachedUserData()
+        if (cachedUser) {
+          user.value = cachedUser
+          console.log('✅ User data restored from cache:', user.value.email)
+          const cartStore = useCartStore()
+          cartStore.setUser(user.value.email)
+          return true
+        }
+        
+        // Try localStorage
+        const savedUser = loadFromLocalStorage()
+        if (savedUser) {
+          user.value = savedUser
+          console.log('✅ User data restored from localStorage:', user.value.email)
+          const cartStore = useCartStore()
+          cartStore.setUser(user.value.email)
+          return true
+        }
+      }
+      
+      if (user.value) {
+        console.log('✅ User data preserved:', user.value.email)
+        const cartStore = useCartStore()
+        cartStore.setUser(user.value.email)
+        return true
+      }
+    }
+    
+    // ✅ If we have refresh token, use it to get a new access token
     if (refreshToken) {
       console.log('🔄 Refresh token found, refreshing access token...')
       try {
-        // Refresh the access token first
         await refreshAccessToken()
         console.log('✅ Access token refreshed successfully!')
         
-        // ✅ Token is valid - user is authenticated
         isAuthenticated.value = true
         
-        // ✅ Restore user data from cache if not in memory
         if (!user.value) {
           const cachedUser = getCachedUserData()
           if (cachedUser) {
@@ -464,9 +546,17 @@ export const useAuthStore = defineStore('auth', () => {
             cartStore.setUser(user.value.email)
             return true
           }
+          
+          const savedUser = loadFromLocalStorage()
+          if (savedUser) {
+            user.value = savedUser
+            console.log('✅ User data restored from localStorage:', user.value.email)
+            const cartStore = useCartStore()
+            cartStore.setUser(user.value.email)
+            return true
+          }
         }
         
-        // ✅ If we have user data in memory, keep it
         if (user.value) {
           console.log('✅ User data preserved:', user.value.email)
           const cartStore = useCartStore()
@@ -474,7 +564,7 @@ export const useAuthStore = defineStore('auth', () => {
           return true
         }
         
-        // ✅ If no user data anywhere, try to fetch profile
+        // Try to fetch profile
         try {
           console.log('👤 No user data, trying to fetch profile...')
           const response = await authAPI.getProfile()
@@ -494,6 +584,7 @@ export const useAuthStore = defineStore('auth', () => {
             }
             
             cacheUserData(user.value)
+            saveToLocalStorage()
             const cartStore = useCartStore()
             cartStore.setUser(user.value.email)
             return true
@@ -502,12 +593,11 @@ export const useAuthStore = defineStore('auth', () => {
           console.warn('⚠️ Could not fetch profile, using cached data if available')
         }
         
-        // ✅ If we still have no user data, create minimal user from email
-        console.log('✅ Authenticated but no user data available')
         return true
       } catch (refreshError) {
         console.error('❌ Refresh failed:', refreshError.message)
         clearTokens()
+        localStorage.removeItem('authToken')
         clearCachedUserData()
         user.value = null
         isAuthenticated.value = false
@@ -516,7 +606,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
     
     // ✅ If we have access token but no refresh token, validate it
-    if (accessToken) {
+    if (accessToken || localToken) {
       console.log('⚠️ Access token exists but no refresh token')
       try {
         const response = await authAPI.getProfile()
@@ -536,7 +626,14 @@ export const useAuthStore = defineStore('auth', () => {
           }
           
           cacheUserData(user.value)
+          saveToLocalStorage()
           isAuthenticated.value = true
+          
+          // ✅ Save token to localStorage if not there
+          if (accessToken && !localStorage.getItem('authToken')) {
+            localStorage.setItem('authToken', accessToken)
+          }
+          
           const cartStore = useCartStore()
           cartStore.setUser(user.value.email)
           return true
@@ -544,6 +641,7 @@ export const useAuthStore = defineStore('auth', () => {
       } catch (err) {
         console.log('❌ Access token invalid')
         clearTokens()
+        localStorage.removeItem('authToken')
         clearCachedUserData()
         user.value = null
         isAuthenticated.value = false
@@ -589,6 +687,11 @@ export const useAuthStore = defineStore('auth', () => {
     changePassword,
     checkAuth,
     openAuthModal,
-    closeAuthModal
+    closeAuthModal,
+    saveToLocalStorage,
+    loadFromLocalStorage,
+    cacheUserData,
+    getCachedUserData,
+    clearCachedUserData
   }
 })
