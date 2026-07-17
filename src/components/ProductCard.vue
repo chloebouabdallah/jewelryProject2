@@ -60,12 +60,13 @@ const isWishlisted = computed(() => wishlistStore.isInWishlist(props.product.id)
 const toggleWishlist = () => {
   wishlistStore.toggleWishlist({
     id: props.product.id,
-    variant_id: props.product.variant_id,
+    variant_id: props.product.variant_id || props.product.id,
     name: props.product.name,
     price: props.product.price,
     image: props.product.image,
     category: props.product.category,
-    badge: props.product.badge
+    badge: props.product.badge,
+    slug: props.product.slug,
   })
 }
 

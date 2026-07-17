@@ -58,10 +58,15 @@
                 <i class="fas fa-cog mr-2"></i> Settings
               </router-link>
               
+              <router-link to="/wishlist" class="block w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-amber-50" @click="closeUserMenu">
+                <i class="fas fa-heart mr-2"></i> Wishlist
+                <span v-if="wishlistStore.itemCount > 0" class="ml-1 text-xs text-amber-600">({{ wishlistStore.itemCount }})</span>
+              </router-link>
+              
               <button @click="handleLogout" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-amber-50">Logout</button>
             </template>
             
-            <!-- ✅ GUEST USER SECTION - NEW -->
+            <!-- ✅ GUEST USER SECTION -->
             <template v-else-if="guestStore.isGuest">
               <div class="px-4 py-2 border-b border-amber-100">
                 <div class="flex items-center justify-between">
@@ -74,6 +79,11 @@
                 <p class="text-[10px] text-amber-500 mt-0.5">Browsing as guest</p>
               </div>
               
+              <router-link to="/wishlist" class="block w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-amber-50" @click="closeUserMenu">
+                <i class="fas fa-heart mr-2"></i> Wishlist
+                <span v-if="wishlistStore.itemCount > 0" class="ml-1 text-xs text-amber-600">({{ wishlistStore.itemCount }})</span>
+              </router-link>
+              
               <button @click="handleGuestLogout" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-amber-50">
                 <i class="fas fa-sign-out-alt mr-2"></i> Leave Guest Mode
               </button>
@@ -83,7 +93,7 @@
               </button>
             </template>
             
-            <!-- ✅ NOT LOGGED IN - UPDATED with Guest option -->
+            <!-- ✅ NOT LOGGED IN -->
             <template v-else>
               <button @click="handleLogin" class="block w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-amber-50">
                 <i class="fas fa-sign-in-alt mr-2"></i> Login
@@ -102,7 +112,7 @@
         <div class="relative cursor-pointer" @click="goToCart">
           <i class="fas fa-shopping-bag text-base md:text-xl hover:text-amber-700 transition text-[#4a3a2a]"></i>
           <span 
-            v-if="authStore.isAuthenticated && cartStore.itemCount > 0"
+            v-if="cartStore.itemCount > 0"
             class="cart-badge absolute -top-2 -right-2 bg-[#b8926c] text-white text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1"
           >
             {{ cartStore.itemCount > 99 ? '99+' : cartStore.itemCount }}
@@ -130,7 +140,7 @@
           {{ link.name }}
         </router-link>
         
-        <!-- ✅ MOBILE GUEST / AUTH SECTION - NEW -->
+        <!-- ✅ MOBILE GUEST / AUTH SECTION -->
         <div class="border-t border-amber-200 pt-3 mt-1">
           <!-- Guest User -->
           <div v-if="guestStore.isGuest" class="flex items-center justify-between py-2">
@@ -159,7 +169,7 @@
             </button>
           </div>
           
-          <!-- Authenticated User - Keep existing behavior -->
+          <!-- Authenticated User -->
           <div v-else class="flex items-center justify-between py-2">
             <router-link to="/settings" class="text-sm font-semibold text-stone-800 hover:text-amber-700">
               <i class="fas fa-user-circle mr-1"></i>
@@ -169,6 +179,13 @@
               <i class="fas fa-sign-out-alt"></i>
             </button>
           </div>
+          
+          <!-- Wishlist link in mobile -->
+          <router-link to="/wishlist" class="flex items-center gap-2 py-2 text-stone-700 hover:text-amber-700" @click="mobileMenuOpen = false">
+            <i class="fas fa-heart"></i>
+            Wishlist
+            <span v-if="wishlistStore.itemCount > 0" class="text-xs text-amber-600">({{ wishlistStore.itemCount }})</span>
+          </router-link>
         </div>
       </div>
     </Transition>
@@ -176,8 +193,6 @@
   
   <SearchBar ref="searchBarRef" />
   <AuthModal />
-  
-  <!-- ✅ GUEST MODAL - NEW -->
   <GuestModal 
     :show="showGuestModal"
     @close="showGuestModal = false"
@@ -236,7 +251,7 @@ const closeUserMenu = () => {
   userMenuOpen.value = false
 }
 
-// ✅ GUEST MODAL HANDLERS - NEW
+// ✅ GUEST MODAL HANDLERS
 const openGuestModal = () => {
   showGuestModal.value = true
   userMenuOpen.value = false
@@ -274,13 +289,16 @@ const handleSignup = () => {
 
 const handleLogout = () => {
   authStore.logout()
+  wishlistStore.setUser(null)
+  wishlistStore.clearWishlist()
   userMenuOpen.value = false
 }
 
-// ✅ GUEST LOGOUT - NEW
+// ✅ GUEST LOGOUT
 const handleGuestLogout = () => {
   guestStore.clearGuest()
   cartStore.clearUserCartDisplay()
+  wishlistStore.clearWishlist()
   userMenuOpen.value = false
 }
 
@@ -295,6 +313,7 @@ const handleScroll = () => {
 onMounted(async () => {
   window.addEventListener('scroll', handleScroll)
   document.addEventListener('click', handleClickOutside)
+  
   await authStore.checkAuth()
   
   // ✅ Load guest from localStorage
@@ -305,6 +324,9 @@ onMounted(async () => {
     const guestEmail = guestStore.currentGuest.email || `guest_${guestStore.currentGuest.id}`
     cartStore.setUser(guestEmail)
   }
+  
+  // ✅ Load wishlist from API or localStorage
+  await wishlistStore.fetchWishlist()
 })
 
 onUnmounted(() => {

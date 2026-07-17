@@ -341,12 +341,13 @@ function isInWishlist(productId) {
 function toggleWishlist(product) {
   wishlistStore.toggleWishlist({
     id: product.id,
-    variant_id: product.variant_id,
+    variant_id: product.variant_id || product.id,
     name: product.name,
     price: product.price,
     image: product.image,
     category: product.category_slug,
-    badge: product.badge
+    badge: product.badge,
+    slug: product.slug,
   })
 }
 

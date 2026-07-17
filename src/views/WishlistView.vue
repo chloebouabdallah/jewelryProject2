@@ -6,11 +6,17 @@
       <div class="text-center mb-8 md:mb-12">
         <h1 class="font-playfair text-3xl md:text-4xl lg:text-5xl font-light text-stone-800 mb-3">My Wishlist</h1>
         <div class="w-16 md:w-20 h-0.5 bg-amber-500 mx-auto rounded-full"></div>
-        <p class="text-stone-500 text-sm md:text-base mt-2 md:mt-3">{{ wishlistStore.itemCount }} items in your wishlist</p>
+        <p class="text-stone-500 text-sm md:text-base mt-2 md:mt-3">{{ wishlist.length }} items in your wishlist</p>
+      </div>
+      
+      <!-- Loading State -->
+      <div v-if="isLoading" class="text-center py-12 md:py-16">
+        <i class="fas fa-spinner fa-spin text-4xl text-amber-600"></i>
+        <p class="text-stone-500 mt-3">Loading your wishlist...</p>
       </div>
       
       <!-- Wishlist Items -->
-      <div v-if="wishlistStore.items.length === 0" class="text-center py-12 md:py-16">
+      <div v-else-if="wishlist.length === 0" class="text-center py-12 md:py-16">
         <i class="far fa-heart text-5xl md:text-6xl text-amber-300 mb-3 md:mb-4"></i>
         <h2 class="text-xl md:text-2xl font-playfair text-stone-800 mb-2">Your wishlist is empty</h2>
         <p class="text-stone-600 text-sm md:text-base mb-4 md:mb-6">Save your favorite items here to shop later.</p>
@@ -19,18 +25,18 @@
         </router-link>
       </div>
       
-      <!-- Wishlist Grid - Responsive -->
+      <!-- Wishlist Grid -->
       <div v-else class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 lg:gap-6">
-        <div v-for="item in wishlistStore.items" :key="item.id" class="group bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300">
+        <div v-for="item in wishlist" :key="item.id" class="group bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300">
           <!-- Product Image -->
-          <router-link :to="`/product/${item.id}`" class="block relative overflow-hidden aspect-square">
-            <img :src="item.image" :alt="item.name" class="w-full h-full object-cover transition duration-500 group-hover:scale-105">
-            <div v-if="item.badge" class="absolute top-1 left-1 md:top-2 md:left-2 bg-amber-600 text-white px-1.5 py-0.5 md:px-2 md:py-1 rounded-full text-[10px] md:text-xs">
+          <router-link :to="`/product/${item.slug || item.id}`" class="block relative overflow-hidden aspect-square">
+            <img :src="item.image" :alt="item.name" class="w-full h-full object-cover transition duration-500 group-hover:scale-105" @error="handleImageError">
+            <div v-if="item.badge && item.badge !== 'none'" class="absolute top-1 left-1 md:top-2 md:left-2 bg-amber-600 text-white px-1.5 py-0.5 md:px-2 md:py-1 rounded-full text-[10px] md:text-xs">
               {{ item.badge }}
             </div>
             <button 
               @click.prevent="removeFromWishlist(item.id)" 
-              class="absolute top-1 right-1 md:top-2 md:right-2 w-6 h-6 md:w-7 md:h-7 rounded-full bg-white/80 hover:bg-red-500 hover:text-white transition flex items-center justify-center"
+              class="absolute top-1 right-1 md:top-2 md:right-2 w-6 h-6 md:w-7 md:h-7 rounded-full bg-white/80 hover:bg-red-500 hover:text-white transition flex items-center justify-center shadow-md"
             >
               <i class="fas fa-trash-alt text-[10px] md:text-xs"></i>
             </button>
@@ -38,7 +44,7 @@
           
           <!-- Product Info -->
           <div class="p-2 md:p-3">
-            <router-link :to="`/product/${item.id}`" class="block">
+            <router-link :to="`/product/${item.slug || item.id}`" class="block">
               <h3 class="font-playfair font-semibold text-stone-800 text-xs sm:text-sm md:text-base mb-0.5 md:mb-1 hover:text-amber-600 transition line-clamp-2">{{ item.name }}</h3>
             </router-link>
             <p class="text-amber-700 font-bold text-sm md:text-base lg:text-lg mb-2 md:mb-3">${{ item.price.toLocaleString() }}</p>
@@ -66,21 +72,23 @@
 </template>
 
 <script setup>
-import { useWishlistStore } from '@/stores/wishlist'
+import { ref, onMounted } from 'vue'
+import { wishlist, loadWishlist, toggleWishlist, clearWishlist } from '@/stores/wishlist'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
 
-const wishlistStore = useWishlistStore()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
+const isLoading = ref(true)
+
 useScrollAnimation()
 
 const addToCart = (product) => {
   cartStore.addToCart(
     {
       id: product.id,
-      variant_id: product.variant_id,
+      variant_id: product.variant_id || product.id,
       name: product.name,
       price: product.price,
       image: product.image,
@@ -91,9 +99,21 @@ const addToCart = (product) => {
   )
 }
 
-const removeFromWishlist = (productId) => {
-  wishlistStore.removeFromWishlist(productId)
+const removeFromWishlist = async (productId) => {
+  const product = wishlist.value.find(item => item.id === productId)
+  if (product) {
+    await toggleWishlist(product)
+  }
 }
+
+const handleImageError = (event) => {
+  event.target.src = 'https://placehold.co/400x500/amber/white?text=Image+Not+Found'
+}
+
+onMounted(async () => {
+  await loadWishlist()
+  isLoading.value = false
+})
 </script>
 
 <style scoped>

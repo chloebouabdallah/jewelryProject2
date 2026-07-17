@@ -390,6 +390,117 @@ export const cartAPI = {
   }
 };
 
+export const wishlistAPI = {
+  // Get customer info which includes wishlist
+  async viewWishlist() {
+    try {
+      // Get customer info
+      const response = await osimartApi.get('/customer-info/')
+      console.log('📦 Customer info:', response.data)
+      
+      // Check if wishlist exists in the response
+      const customerData = response.data
+      let wishlistItems = []
+      
+      // Try different possible structures
+      if (customerData.wishlist) {
+        wishlistItems = customerData.wishlist
+      } else if (customerData.favorites) {
+        wishlistItems = customerData.favorites
+      } else if (customerData.saved_items) {
+        wishlistItems = customerData.saved_items
+      } else if (customerData.user && customerData.user.wishlist) {
+        wishlistItems = customerData.user.wishlist
+      }
+      
+      return { items: wishlistItems, customer: customerData }
+    } catch (error) {
+      console.error('Error fetching customer wishlist:', error)
+      throw error
+    }
+  },
+
+  // Add item to wishlist via customer update
+  async addItem(productId) {
+    try {
+      // First get current customer info
+      const customerResponse = await osimartApi.get('/customer-info/')
+      const customerData = customerResponse.data
+      
+      // Get current wishlist
+      let currentWishlist = []
+      if (customerData.wishlist) {
+        currentWishlist = customerData.wishlist
+      } else if (customerData.favorites) {
+        currentWishlist = customerData.favorites
+      } else if (customerData.saved_items) {
+        currentWishlist = customerData.saved_items
+      }
+      
+      // Add product if not already in wishlist
+      if (!currentWishlist.includes(productId)) {
+        currentWishlist.push(productId)
+      }
+      
+      // Update customer info with new wishlist
+      const updateResponse = await osimartApi.patch('/customer-info/', {
+        wishlist: currentWishlist
+      })
+      
+      return updateResponse.data
+    } catch (error) {
+      console.error('Error adding to wishlist:', error)
+      throw error
+    }
+  },
+
+  // Remove item from wishlist
+  async removeItem(productId) {
+    try {
+      // Get current customer info
+      const customerResponse = await osimartApi.get('/customer-info/')
+      const customerData = customerResponse.data
+      
+      // Get current wishlist
+      let currentWishlist = []
+      if (customerData.wishlist) {
+        currentWishlist = customerData.wishlist
+      } else if (customerData.favorites) {
+        currentWishlist = customerData.favorites
+      } else if (customerData.saved_items) {
+        currentWishlist = customerData.saved_items
+      }
+      
+      // Remove product
+      currentWishlist = currentWishlist.filter(id => id !== productId)
+      
+      // Update customer info
+      const updateResponse = await osimartApi.patch('/customer-info/', {
+        wishlist: currentWishlist
+      })
+      
+      return updateResponse.data
+    } catch (error) {
+      console.error('Error removing from wishlist:', error)
+      throw error
+    }
+  },
+
+  // Clear wishlist
+  async clearWishlist() {
+    try {
+      const response = await osimartApi.patch('/customer-info/', {
+        wishlist: []
+      })
+      return response.data
+    } catch (error) {
+      console.error('Error clearing wishlist:', error)
+      throw error
+    }
+  }
+};
+
+
 // ============================================
 // SHIPPING COUNTRIES API
 // ============================================
