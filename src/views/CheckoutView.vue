@@ -293,7 +293,7 @@ import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import { useScrollAnimation } from '@/composables/useScrollAnimation'
-import { shippingAPI, paymentAPI, checkoutAPI, osimartApi, getAccessToken, cartAPI } from '@/services/osimart'
+import { shippingAPI, paymentAPI, checkoutAPI, osimartApi, getAccessToken } from '@/services/osimart'
 import emailjs from '@emailjs/browser'
 
 const router = useRouter()
@@ -301,11 +301,16 @@ const cartStore = useCartStore()
 const authStore = useAuthStore()
 useScrollAnimation()
 
+// ============================================
+// STATE
+// ============================================
 const isProcessing = ref(false)
 const isLoadingData = ref(false)
 const error = ref(null)
 const countries = ref([])
 const paymentMethods = ref([])
+const zoneId = ref('')
+const shippingZonesMap = ref({})
 
 // Checkout Form
 const checkoutForm = ref({
@@ -321,7 +326,9 @@ const checkoutForm = ref({
   newsletter: false
 })
 
-// Form validation
+// ============================================
+// COMPUTED
+// ============================================
 const isFormValid = computed(() => {
   const form = checkoutForm.value
   return form.firstName && 
@@ -334,7 +341,17 @@ const isFormValid = computed(() => {
          form.paymentMethod
 })
 
-// Payment method icon mapping
+const selectedCountry = computed(() => {
+  return countries.value.find(c => c.id === checkoutForm.value.countryId)
+})
+
+const selectedPaymentMethod = computed(() => {
+  return paymentMethods.value.find(m => m.id === checkoutForm.value.paymentMethod)
+})
+
+// ============================================
+// HELPERS
+// ============================================
 const getPaymentIcon = (method) => {
   const iconMap = {
     'credit_card': 'fas fa-credit-card',
@@ -353,7 +370,6 @@ const getPaymentIcon = (method) => {
   return iconMap[key] || method.icon || 'fas fa-credit-card'
 }
 
-// Check if payment method is COD
 const isCODPayment = (method) => {
   if (!method) return false
   const name = (method.name || '').toLowerCase()
@@ -362,17 +378,6 @@ const isCODPayment = (method) => {
          code === 'cod' || code === 'cash_on_delivery' || method.is_cod === true
 }
 
-// Get selected country details
-const selectedCountry = computed(() => {
-  return countries.value.find(c => c.id === checkoutForm.value.countryId)
-})
-
-// Get selected payment method details
-const selectedPaymentMethod = computed(() => {
-  return paymentMethods.value.find(m => m.id === checkoutForm.value.paymentMethod)
-})
-
-// Calculate total with fees
 const calculateTotal = () => {
   let total = cartStore.total
   
@@ -387,22 +392,6 @@ const calculateTotal = () => {
   return total
 }
 
-// Handle country change
-const onCountryChange = () => {
-  if (selectedCountry.value?.default_payment_method_id) {
-    const defaultMethod = paymentMethods.value.find(m => m.id === selectedCountry.value.default_payment_method_id)
-    if (defaultMethod) {
-      checkoutForm.value.paymentMethod = defaultMethod.id
-    }
-  }
-}
-
-// Handle Login Redirect
-const handleLoginRedirect = () => {
-  authStore.openAuthModal('login')
-}
-
-// ✅ Get token from multiple sources
 const getToken = () => {
   let token = localStorage.getItem('authToken')
   if (!token) {
@@ -411,7 +400,29 @@ const getToken = () => {
   return token
 }
 
-// ✅ Fetch user profile from Osimart API
+// ============================================
+// FETCH ZONES FOR COUNTRY
+// ============================================
+const fetchZonesForCountry = async (countryId) => {
+  try {
+    console.log('🔍 Fetching zones for country:', countryId)
+    const response = await shippingAPI.getCountry(countryId)
+    console.log('📦 Country zones response:', response.data)
+    
+    if (response.data?.shipping_zones?.length > 0) {
+      shippingZonesMap.value[countryId] = response.data.shipping_zones
+      return response.data.shipping_zones
+    }
+    return []
+  } catch (err) {
+    console.warn('⚠️ Failed to fetch zones for country:', countryId, err.message)
+    return []
+  }
+}
+
+// ============================================
+// FETCH USER PROFILE
+// ============================================
 const fetchUserProfile = async () => {
   if (!authStore.isAuthenticated) {
     return null
@@ -433,7 +444,9 @@ const fetchUserProfile = async () => {
   }
 }
 
-// ✅ Auto-fill contact information (phone is auto-filled but EDITABLE)
+// ============================================
+// AUTO-FILL USER DATA
+// ============================================
 const autoFillUserData = async () => {
   if (!authStore.isAuthenticated || !authStore.currentUser) {
     return
@@ -441,14 +454,10 @@ const autoFillUserData = async () => {
   
   const user = authStore.currentUser
   
-  // Auto-fill but user can still edit
   checkoutForm.value.firstName = user.firstName || user.name?.split(' ')[0] || user.first_name || ''
   checkoutForm.value.lastName = user.lastName || user.name?.split(' ').slice(1).join(' ') || user.last_name || ''
   checkoutForm.value.email = user.email || ''
-  
-  // ✅ Auto-fill phone but user can edit it
   checkoutForm.value.phone = user.phone || user.mobile || user.mobile_number || ''
-  console.log('📝 Phone auto-filled (editable):', checkoutForm.value.phone)
   
   try {
     const profileData = await fetchUserProfile()
@@ -459,7 +468,6 @@ const autoFillUserData = async () => {
       if (profile.email) checkoutForm.value.email = profile.email
       if (profile.phone || profile.mobile) {
         checkoutForm.value.phone = profile.phone || profile.mobile
-        console.log('📝 Phone updated from profile (editable):', checkoutForm.value.phone)
       }
     }
   } catch (err) {
@@ -467,14 +475,18 @@ const autoFillUserData = async () => {
   }
 }
 
-// Load checkout data
+// ============================================
+// LOAD CHECKOUT DATA
+// ============================================
 const loadCheckoutData = async () => {
   isLoadingData.value = true
   error.value = null
   
   try {
     // Fetch countries
+    console.log('🌍 Fetching countries...')
     const countriesResponse = await shippingAPI.getCountries()
+    console.log('🌍 Countries API Response:', countriesResponse.data)
     
     let countryData = []
     if (countriesResponse.data && countriesResponse.data.results) {
@@ -485,18 +497,40 @@ const loadCheckoutData = async () => {
       countryData = [countriesResponse.data]
     }
     
-    countries.value = countryData.map(country => ({
-      id: country.id,
-      country_name: country.country_name || country.name || '',
-      shipment_price: country.shipment_price || 0,
-      cod_available: country.cod_available !== undefined ? country.cod_available : false,
-      cod_fee: country.cod_fee || 0,
-      default_payment_method_id: country.default_payment_method_id || null,
-      is_active: country.is_active !== false,
-    }))
+    countries.value = countryData.map(country => {
+      console.log(`🇨🇾 Country: ${country.country_name || country.name}`, country)
+      
+      // Extract shipping zones - try different possible field names
+      let zones = []
+      if (country.shipping_zones && Array.isArray(country.shipping_zones)) {
+        zones = country.shipping_zones
+      } else if (country.zones && Array.isArray(country.zones)) {
+        zones = country.zones
+      } else if (country.shipping_zone && Array.isArray(country.shipping_zone)) {
+        zones = country.shipping_zone
+      }
+      
+      // Store zones in map for easy access
+      if (zones.length > 0) {
+        shippingZonesMap.value[country.id] = zones
+      }
+      
+      return {
+        id: country.id,
+        country_name: country.country_name || country.name || '',
+        shipment_price: country.shipment_price || 0,
+        cod_available: country.cod_available !== undefined ? country.cod_available : false,
+        cod_fee: country.cod_fee || 0,
+        default_payment_method_id: country.default_payment_method_id || null,
+        is_active: country.is_active !== false,
+        shipping_zones: zones,
+      }
+    })
     
     // Fetch payment methods
+    console.log('💳 Fetching payment methods...')
     const paymentResponse = await paymentAPI.getAvailablePaymentMethods()
+    console.log('💳 Payment methods response:', paymentResponse.data)
     
     let paymentData = []
     if (paymentResponse.data && paymentResponse.data.results) {
@@ -537,9 +571,23 @@ const loadCheckoutData = async () => {
     const defaultCountry = countries.value.find(c => c.country_name === 'Lebanon') || countries.value[0]
     if (defaultCountry) {
       checkoutForm.value.countryId = defaultCountry.id
+      console.log('✅ Default country set to:', defaultCountry.country_name)
+      
+      // ✅ Fetch zones for the default country
+      const zones = await fetchZonesForCountry(defaultCountry.id)
+      if (zones.length > 0) {
+        zoneId.value = zones[0].id
+        console.log('✅ Default zone set to:', zoneId.value)
+      } else {
+        // If no zones from API, check if we have zones from the initial response
+        if (defaultCountry.shipping_zones?.length > 0) {
+          zoneId.value = defaultCountry.shipping_zones[0].id
+          console.log('✅ Default zone from initial response:', zoneId.value)
+        }
+      }
     }
     
-    // Auto-fill user data if logged in (phone is editable)
+    // Auto-fill user data if logged in
     if (authStore.isAuthenticated) {
       await autoFillUserData()
     }
@@ -552,7 +600,56 @@ const loadCheckoutData = async () => {
   }
 }
 
-// Send order emails
+// ============================================
+// HANDLE COUNTRY CHANGE
+// ============================================
+const onCountryChange = async () => {
+  console.log('🌍 Country changed to:', checkoutForm.value.countryId)
+  
+  // Check if we already have zones for this country
+  let zones = shippingZonesMap.value[checkoutForm.value.countryId] || []
+  
+  // If not, fetch them
+  if (zones.length === 0) {
+    zones = await fetchZonesForCountry(checkoutForm.value.countryId)
+  }
+  
+  // If still no zones, check the countries array
+  if (zones.length === 0) {
+    const selected = countries.value.find(c => c.id === checkoutForm.value.countryId)
+    if (selected?.shipping_zones?.length > 0) {
+      zones = selected.shipping_zones
+      shippingZonesMap.value[checkoutForm.value.countryId] = zones
+    }
+  }
+  
+  if (zones.length > 0) {
+    zoneId.value = zones[0].id
+    console.log('✅ Zone ID set to:', zoneId.value)
+  } else {
+    console.warn('⚠️ No zones found for country:', checkoutForm.value.countryId)
+    zoneId.value = ''
+  }
+  
+  // Auto-select default payment method for country
+  if (selectedCountry.value?.default_payment_method_id) {
+    const defaultMethod = paymentMethods.value.find(m => m.id === selectedCountry.value.default_payment_method_id)
+    if (defaultMethod) {
+      checkoutForm.value.paymentMethod = defaultMethod.id
+    }
+  }
+}
+
+// ============================================
+// HANDLE LOGIN REDIRECT
+// ============================================
+const handleLoginRedirect = () => {
+  authStore.openAuthModal('login')
+}
+
+// ============================================
+// SEND ORDER EMAILS
+// ============================================
 const sendOrderEmail = async () => {
   const orderItems = cartStore.items.map(item => 
     `${item.name} x${item.quantity} - $${(item.price * item.quantity).toLocaleString()}`
@@ -680,7 +777,9 @@ We'll notify you when your order ships!
   }
 }
 
-// ✅ FIXED: Place Order - Uses correct API format
+// ============================================
+// PLACE ORDER
+// ============================================
 const placeOrder = async () => {
   if (!isFormValid.value) {
     alert('Please fill in all required fields.')
@@ -695,29 +794,39 @@ const placeOrder = async () => {
   isProcessing.value = true
   
   try {
-    // ✅ Build order_items from cart items
-    const orderItems = cartStore.items.map(item => ({
-      variant_id: item.variant_id || item.id,
-      quantity: item.quantity,
-      price: item.price
-    }))
+    // ✅ Build cart object
+    const cartObject = {}
+    cartStore.items.forEach(item => {
+      cartObject[item.id] = {
+        product_id: item.id,
+        variant_id: item.variant_id || item.id,
+        quantity: item.quantity,
+        price: item.price
+      }
+    })
     
     // ✅ Format data according to Osimart API expectations
     const orderData = {
-      first_name: checkoutForm.value.firstName,
-      last_name: checkoutForm.value.lastName,
-      email: checkoutForm.value.email,
-      address: checkoutForm.value.address,
-      postal_code: checkoutForm.value.postalCode,
-      country_id: checkoutForm.value.countryId,
-      phone: checkoutForm.value.phone || '',
-      phone_code: checkoutForm.value.countryCode || '+961',
       payment_method_id: checkoutForm.value.paymentMethod,
-      subscribe_newsletter: checkoutForm.value.newsletter || false,
-      order_items: orderItems
+      cart: cartObject,
+      
+      guest: {
+        first_name: checkoutForm.value.firstName,
+        last_name: checkoutForm.value.lastName,
+        email: checkoutForm.value.email,
+        mobile_number: checkoutForm.value.phone
+      },
+      
+      address: {
+        country: checkoutForm.value.countryId,
+        zone: zoneId.value || '',
+        address: checkoutForm.value.address,
+        postal_code: checkoutForm.value.postalCode
+      }
     }
     
-    console.log('📦 Creating order with items:', JSON.stringify(orderData, null, 2))
+    console.log('📦 Creating order with data:', JSON.stringify(orderData, null, 2))
+    console.log('📍 Zone ID being sent:', zoneId.value)
     
     const response = await checkoutAPI.createCheckout(orderData)
     console.log('✅ Order created:', response.data)
@@ -757,10 +866,18 @@ const placeOrder = async () => {
         errorMsg = data.error
       } else if (data.detail) {
         errorMsg = data.detail
+      } else if (data.zone) {
+        errorMsg = Array.isArray(data.zone) ? data.zone.join(', ') : data.zone
+      } else if (data.country) {
+        errorMsg = Array.isArray(data.country) ? data.country.join(', ') : data.country
+      } else if (data.address) {
+        errorMsg = Array.isArray(data.address) ? data.address.join(', ') : data.address
+      } else if (data.payment_method_id) {
+        errorMsg = Array.isArray(data.payment_method_id) ? data.payment_method_id.join(', ') : data.payment_method_id
       } else if (data.cart) {
         errorMsg = Array.isArray(data.cart) ? data.cart.join(', ') : data.cart
-      } else if (data.order_items) {
-        errorMsg = Array.isArray(data.order_items) ? data.order_items.join(', ') : data.order_items
+      } else if (data.guest) {
+        errorMsg = Array.isArray(data.guest) ? data.guest.join(', ') : data.guest
       } else if (typeof data === 'object') {
         const firstKey = Object.keys(data)[0]
         if (firstKey && data[firstKey]) {
@@ -775,7 +892,9 @@ const placeOrder = async () => {
   }
 }
 
-// ✅ On mount - sync cart first, then load checkout data
+// ============================================
+// ON MOUNT
+// ============================================
 onMounted(async () => {
   await authStore.checkAuth()
   
