@@ -55,13 +55,13 @@ export const cartService = {
 
   async clearCart() {
     try {
-      // First get current cart
+      // First get the current cart
       const cartData = await this.viewCart()
       
       if (cartData && cartData.cart) {
         const cartItems = Object.values(cartData.cart)
         
-        // Remove each item
+        // Remove each item one by one
         for (const item of cartItems) {
           try {
             await this.removeItem(item.id)

@@ -82,34 +82,6 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // ============================================
-  // LOCAL STORAGE HELPERS
-  // ============================================
-  function saveToLocalStorage() {
-    if (user.value) {
-      try {
-        localStorage.setItem('soutou_user', JSON.stringify(user.value))
-        console.log('💾 User saved to localStorage')
-      } catch (e) {
-        console.warn('Failed to save user:', e)
-      }
-    }
-  }
-
-  function loadFromLocalStorage() {
-    try {
-      const saved = localStorage.getItem('soutou_user')
-      if (saved) {
-        const data = JSON.parse(saved)
-        console.log('📂 User loaded from localStorage:', data.email)
-        return data
-      }
-    } catch (e) {
-      console.warn('Failed to load user from localStorage:', e)
-    }
-    return null
-  }
-
-  // ============================================
   // LOGIN
   // ============================================
   async function login(email, password, deviceName, deviceId) {
@@ -210,7 +182,6 @@ export const useAuthStore = defineStore('auth', () => {
 
       // Cache user data for recovery on refresh
       cacheUserData(user.value)
-      saveToLocalStorage()
 
       isAuthenticated.value = true
       showAuthModal.value = false
@@ -279,8 +250,7 @@ export const useAuthStore = defineStore('auth', () => {
       
       // ✅ ALSO CLEAR LOCALSTORAGE
       localStorage.removeItem('authToken')
-      localStorage.removeItem('soutou_user')
-      console.log('🗑️ Auth token and user data removed from localStorage')
+      console.log('🗑️ Auth token removed from localStorage')
       
       const cartStore = useCartStore()
       cartStore.clearUserCartDisplay()
@@ -398,7 +368,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     cacheUserData(user.value)
-    saveToLocalStorage()
     isAuthenticated.value = true
     
     if (userData.token || userData.accessToken) {
@@ -508,16 +477,6 @@ export const useAuthStore = defineStore('auth', () => {
           cartStore.setUser(user.value.email)
           return true
         }
-        
-        // Try localStorage
-        const savedUser = loadFromLocalStorage()
-        if (savedUser) {
-          user.value = savedUser
-          console.log('✅ User data restored from localStorage:', user.value.email)
-          const cartStore = useCartStore()
-          cartStore.setUser(user.value.email)
-          return true
-        }
       }
       
       if (user.value) {
@@ -542,15 +501,6 @@ export const useAuthStore = defineStore('auth', () => {
           if (cachedUser) {
             user.value = cachedUser
             console.log('✅ User data restored from cache:', user.value.email)
-            const cartStore = useCartStore()
-            cartStore.setUser(user.value.email)
-            return true
-          }
-          
-          const savedUser = loadFromLocalStorage()
-          if (savedUser) {
-            user.value = savedUser
-            console.log('✅ User data restored from localStorage:', user.value.email)
             const cartStore = useCartStore()
             cartStore.setUser(user.value.email)
             return true
@@ -584,7 +534,6 @@ export const useAuthStore = defineStore('auth', () => {
             }
             
             cacheUserData(user.value)
-            saveToLocalStorage()
             const cartStore = useCartStore()
             cartStore.setUser(user.value.email)
             return true
@@ -626,7 +575,6 @@ export const useAuthStore = defineStore('auth', () => {
           }
           
           cacheUserData(user.value)
-          saveToLocalStorage()
           isAuthenticated.value = true
           
           // ✅ Save token to localStorage if not there
@@ -687,11 +635,6 @@ export const useAuthStore = defineStore('auth', () => {
     changePassword,
     checkAuth,
     openAuthModal,
-    closeAuthModal,
-    saveToLocalStorage,
-    loadFromLocalStorage,
-    cacheUserData,
-    getCachedUserData,
-    clearCachedUserData
+    closeAuthModal
   }
 })
